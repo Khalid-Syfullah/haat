@@ -1,10 +1,12 @@
 'use client';
 
-import { Banknote, Check, PackageCheck, PhoneCall, Printer, Truck, X } from 'lucide-react';
+import { Banknote, Check, Hand, PackageCheck, PhoneCall, Printer, Truck, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
 import { post } from '@/lib/api';
 import { tk } from '@/lib/format';
+import { type BookingOrder, CourierBooking } from './courier-booking';
+import type { CourierOption } from './types';
 import { useAction } from './use-action';
 
 export interface OrderActionProps {
@@ -20,6 +22,10 @@ export interface OrderActionProps {
   needsCall: boolean;
   courier: string | null;
   trackingNo: string | null;
+  /** Order details for the courier booking dialog. */
+  booking: BookingOrder;
+  /** GET /admin/couriers; null when it could not be loaded. */
+  courierOptions: CourierOption[] | null;
 }
 
 const CANCEL_REASONS = [
@@ -31,7 +37,7 @@ const CANCEL_REASONS = [
 ];
 const FAIL_REASONS = ['Customer refused the parcel', 'Customer unreachable', 'Wrong or incomplete address', 'Customer not at home after 3 attempts'];
 
-type Dialog = 'ship' | 'deliver' | 'fail' | 'cancel' | 'refund' | null;
+type Dialog = 'book' | 'ship' | 'deliver' | 'fail' | 'cancel' | 'refund' | null;
 
 export function OrderActions(o: OrderActionProps) {
   const { run, busy } = useAction();
@@ -78,9 +84,14 @@ export function OrderActions(o: OrderActionProps) {
           </Button>
         )}
         {can('SHIPPED') && (
-          <Button onClick={() => setDialog('ship')}>
-            <Truck className="size-4" /> Ship with courier
-          </Button>
+          <>
+            <Button onClick={() => setDialog('book')}>
+              <Truck className="size-4" /> Book courier
+            </Button>
+            <Button variant="outline" onClick={() => setDialog('ship')}>
+              <Hand className="size-4" /> Ship without booking
+            </Button>
+          </>
         )}
         {can('DELIVERED') && (
           <Button onClick={() => setDialog('deliver')}>
@@ -108,6 +119,8 @@ export function OrderActions(o: OrderActionProps) {
       </div>
 
       {done && o.paymentStatus !== 'REFUND_PENDING' && <p className="text-sm text-ink-soft">This order is closed. Add a note below if something changes.</p>}
+
+      {dialog === 'book' && <CourierBooking order={o.booking} couriers={o.courierOptions} onClose={() => setDialog(null)} />}
 
       <ShipDialog
         open={dialog === 'ship'}
@@ -205,8 +218,9 @@ function ShipDialog({
     onSubmit(courier, tracking.trim());
   };
   return (
-    <Modal open={open} onClose={onClose} title="Ship with courier">
+    <Modal open={open} onClose={onClose} title="Ship without booking">
       <form onSubmit={submit} className="space-y-4" noValidate>
+        <p className="text-sm text-ink-soft">For your own riders, or a parcel you booked with the courier yourself. Nothing is sent to the courier.</p>
         <Field label="Courier">
           <Select value={courier} onChange={(e) => setCourier(e.target.value)}>
             {couriers.map((c) => (

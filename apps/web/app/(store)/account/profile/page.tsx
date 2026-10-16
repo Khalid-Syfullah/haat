@@ -5,7 +5,7 @@ import { serverApi } from '@/lib/server';
 export const metadata: Metadata = { title: 'Profile' };
 
 export default async function ProfilePage() {
-  const data = await serverApi<{ user: { name: string; phone: string; email: string | null; hasPassword: boolean } }>('/account/profile');
+  const data = await serverApi<{ user: { name: string; phone: string; email: string | null; hasPassword: boolean; marketingSms: boolean } }>('/account/profile');
   if (!data) return null;
   return (
     <div>

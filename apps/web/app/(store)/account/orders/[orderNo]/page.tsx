@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Check, CircleCheck, FileText, TriangleAlert, Truck } from 'lucide-react';
+import { Check, CircleCheck, FileText, LifeBuoy, TriangleAlert, Truck } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Countdown } from '@/components/store/countdown';
@@ -60,6 +60,40 @@ interface OrderDetail {
     returnableQty: number;
   }[];
   events: { id: string; status: string | null; title: string; note: string | null; actor: string; createdAt: string }[];
+  /** Latest courier consignment, with its newest events first. */
+  shipments?: Shipment[];
+}
+
+type ShipmentState = 'BOOKED' | 'IN_TRANSIT' | 'DELIVERED' | 'PARTIAL' | 'RETURNED' | 'CANCELLED';
+
+interface Shipment {
+  courier: string;
+  trackingCode: string;
+  state: ShipmentState;
+  events: { status: string; message: string | null; createdAt: string }[];
+}
+
+const COURIER_NAME: Record<string, string> = { steadfast: 'Steadfast', pathao: 'Pathao', redx: 'RedX', test: 'Test courier' };
+
+const SHIPMENT_STATE: Record<ShipmentState, { label: string; text: string; tone: 'green' | 'red' | 'blue' | 'neutral' | 'amber' }> = {
+  BOOKED: { label: 'Waiting for pickup', text: 'Booked with the courier. They will pick it up from us soon.', tone: 'neutral' },
+  IN_TRANSIT: { label: 'On the way', text: 'Your parcel is with the courier and on its way to you.', tone: 'blue' },
+  DELIVERED: { label: 'Delivered', text: 'The courier delivered your parcel.', tone: 'green' },
+  PARTIAL: { label: 'Partly delivered', text: 'Part of the parcel was delivered.', tone: 'amber' },
+  RETURNED: { label: 'Returned', text: 'The parcel is going back to us.', tone: 'red' },
+  CANCELLED: { label: 'Cancelled', text: 'The courier booking was cancelled.', tone: 'red' },
+};
+
+/** Courier status codes like "in_transit" read better as words. Staff names stay out of view. */
+function eventText(e: Shipment['events'][number]) {
+  const words = (s: string) => {
+    const t = s.replace(/[_-]+/g, ' ').trim();
+    return t ? t[0].toUpperCase() + t.slice(1) : 'Update from the courier';
+  };
+  if (!e.message) return words(e.status);
+  if (/^booked by /i.test(e.message)) return 'Booked with the courier';
+  if (/^simulated by /i.test(e.message)) return words(e.status);
+  return e.message;
 }
 
 type Props = { params: Promise<{ orderNo: string }>; searchParams: Promise<{ placed?: string; payment?: string }> };
@@ -92,6 +126,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   ];
   const stopped = o.status === 'CANCELLED' || o.status === 'DELIVERY_FAILED';
   const reached = steps.filter((s) => s.at).length;
+  const shipment = o.shipments?.[0] ?? null;
 
   return (
     <div className="space-y-4">
@@ -122,6 +157,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
             {o.canCancel && <CancelOrderButton orderNo={o.orderNo} />}
             <Link href={`/invoice/${o.orderNo}`} target="_blank" className="inline-flex h-10 items-center gap-1.5 rounded-md border border-line px-3 text-[15px] font-semibold hover:border-ink-faint">
               <FileText className="size-4" /> Invoice
+            </Link>
+            <Link
+              href={`/account/support/new?order=${encodeURIComponent(o.orderNo)}`}
+              className="inline-flex h-10 items-center gap-1.5 rounded-md border border-line px-3 text-[15px] font-semibold hover:border-ink-faint"
+            >
+              <LifeBuoy className="size-4" /> Get help with this order
             </Link>
           </div>
         </div>
@@ -162,11 +203,16 @@ export default async function OrderPage({ params, searchParams }: Props) {
           )
         )}
 
-        {o.courier && o.trackingNo && (
-          <p className="mt-5 flex items-center gap-2 rounded-md bg-paper px-3 py-2 text-[15px]">
-            <Truck className="size-5 text-padma" />
-            {o.courier}, tracking number <span className="font-semibold">{o.trackingNo}</span>
-          </p>
+        {shipment ? (
+          <CourierUpdates shipment={shipment} />
+        ) : (
+          o.courier &&
+          o.trackingNo && (
+            <p className="mt-5 flex flex-wrap items-center gap-x-2 rounded-md bg-paper px-3 py-2 text-[15px]">
+              <Truck className="size-5 text-padma" />
+              {o.courier}, tracking number <span className="font-semibold">{o.trackingNo}</span>
+            </p>
+          )
         )}
       </section>
 
@@ -283,6 +329,39 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CourierUpdates({ shipment }: { shipment: Shipment }) {
+  const state = SHIPMENT_STATE[shipment.state] ?? SHIPMENT_STATE.BOOKED;
+  return (
+    <div className="mt-5 rounded-md border border-line" aria-labelledby="courier-h">
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-1 border-b border-line bg-paper px-3 py-2.5">
+        <Truck className="mt-0.5 size-5 shrink-0 text-padma" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <h2 id="courier-h" className="font-semibold">
+            Courier updates
+          </h2>
+          <p className="text-sm text-ink-soft">
+            {COURIER_NAME[shipment.courier] ?? shipment.courier}, tracking number <span className="font-semibold text-ink">{shipment.trackingCode}</span>
+          </p>
+        </div>
+        <Badge tone={state.tone}>{state.label}</Badge>
+      </div>
+      <p className="border-b border-line px-3 py-2 text-[15px]">{state.text}</p>
+      {shipment.events.length === 0 ? (
+        <p className="px-3 py-2.5 text-sm text-ink-soft">Updates from the courier will show here.</p>
+      ) : (
+        <ol className="divide-y divide-line">
+          {shipment.events.map((e, i) => (
+            <li key={`${e.createdAt}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 text-[15px]">
+              <span className={clsx('min-w-0 break-words', i === 0 ? 'font-semibold' : 'text-ink')}>{eventText(e)}</span>
+              <span className="shrink-0 text-xs text-ink-faint">{dateTime(e.createdAt)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

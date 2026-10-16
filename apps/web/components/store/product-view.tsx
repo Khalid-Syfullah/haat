@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Heart, ShieldCheck, Truck, RotateCcw, Zap, Banknote } from 'lucide-react';
+import { Banknote, BellRing, Heart, RotateCcw, ShieldCheck, TrendingDown, Truck, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { ApiError, del, post } from '@/lib/api';
@@ -41,8 +41,17 @@ export interface ProductDetail {
     flash: { endsAt: string; title: string; soldQty: number; quantityLimit: number; perUserLimit: number } | null;
   }[];
   wishlisted: boolean;
+  /** "Notify me" alerts the signed-in customer is waiting on (empty when logged out). */
+  myAlerts?: ProductAlert[];
   delivery: { zones: { zone: string; label: string; fee: number; days: string }[]; freeShippingThreshold: number; codAvailable: boolean };
   vouchers: { id: string; code: string; title: string; type: string; value: number; maxDiscount: number | null; minSpend: number; endsAt: string; collected: boolean }[];
+}
+
+export type AlertType = 'PRICE_DROP' | 'BACK_IN_STOCK';
+export interface ProductAlert {
+  id: string;
+  variantId: string;
+  type: AlertType;
 }
 
 function useLoginGate() {
@@ -58,7 +67,7 @@ function useLoginGate() {
 export function ProductView({ product, locations }: { product: ProductDetail; locations: Locations | null }) {
   const router = useRouter();
   const toast = useToast();
-  const { setCartCount } = useSession();
+  const { setCartCount, user } = useSession();
   const gate = useLoginGate();
   const here = `/product/${product.slug}`;
 
@@ -68,6 +77,8 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState<'cart' | 'buy' | null>(null);
   const [wish, setWish] = useState(product.wishlisted);
+  const [alerts, setAlerts] = useState<ProductAlert[]>(product.myAlerts ?? []);
+  const [alertBusy, setAlertBusy] = useState<AlertType | null>(null);
 
   const variant = useMemo(
     () => product.variants.find((v) => product.optionNames.every((name) => v.options[name] === selected[name])) ?? (product.optionNames.length ? null : product.variants[0]),
@@ -125,6 +136,30 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
       toast(wish ? 'Removed from wishlist' : 'Saved to wishlist');
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not update wishlist', 'error');
+    }
+  }
+
+  const alertFor = (type: AlertType) => (variant ? alerts.find((a) => a.variantId === variant.id && a.type === type) : undefined);
+
+  async function toggleAlert(type: AlertType) {
+    if (!variant) return;
+    if (!gate(here)) return;
+    const existing = alertFor(type);
+    setAlertBusy(type);
+    try {
+      if (existing) {
+        await del(`/alerts/${existing.id}`);
+        setAlerts((list) => list.filter((a) => a.id !== existing.id));
+        toast(type === 'BACK_IN_STOCK' ? 'Stock alert cancelled' : 'Price alert cancelled');
+      } else {
+        const created = await post<ProductAlert>('/alerts', { variantId: variant.id, type });
+        setAlerts((list) => [...list.filter((a) => !(a.variantId === variant.id && a.type === type)), { id: created.id, variantId: variant.id, type }]);
+        toast(user?.marketingSms === false ? "We'll send you a notification" : "We'll send you a notification and an SMS");
+      }
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not update the alert', 'error');
+    } finally {
+      setAlertBusy(null);
     }
   }
 
@@ -211,6 +246,9 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
                   {flash.quantityLimit - flash.soldQty} left at this price. Limit {flash.perUserLimit} per customer.
                 </p>
               )}
+              {variant && !outOfStock && (
+                <PriceDropToggle on={!!alertFor('PRICE_DROP')} busy={alertBusy === 'PRICE_DROP'} onToggle={() => toggleAlert('PRICE_DROP')} />
+              )}
             </div>
           </div>
 
@@ -256,16 +294,46 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
           </div>
 
           <div className="mt-5 flex gap-2">
-            <Button size="lg" variant="deal" className="flex-1" onClick={() => addToCart(true)} disabled={!variant || outOfStock} loading={busy === 'buy'}>
-              Buy now
-            </Button>
-            <Button size="lg" className="flex-1" onClick={() => addToCart(false)} disabled={!variant || outOfStock} loading={busy === 'cart'}>
-              Add to cart
-            </Button>
+            {outOfStock ? (
+              alertFor('BACK_IN_STOCK') ? (
+                <div className="flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-padma-tint px-3 py-2 text-[15px] text-padma-dark" role="status">
+                  <BellRing className="size-5 shrink-0" aria-hidden />
+                  <span className="font-semibold">We&apos;ll tell you when it&apos;s back</span>
+                  <span aria-hidden className="text-padma-dark/50">
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleAlert('BACK_IN_STOCK')}
+                    disabled={alertBusy === 'BACK_IN_STOCK'}
+                    className="font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <Button size="lg" className="min-w-0 flex-1" onClick={() => toggleAlert('BACK_IN_STOCK')} loading={alertBusy === 'BACK_IN_STOCK'}>
+                  {alertBusy !== 'BACK_IN_STOCK' && <BellRing className="size-5" aria-hidden />}
+                  Notify me when it&apos;s back
+                </Button>
+              )
+            ) : (
+              <>
+                <Button size="lg" variant="deal" className="flex-1" onClick={() => addToCart(true)} disabled={!variant} loading={busy === 'buy'}>
+                  Buy now
+                </Button>
+                <Button size="lg" className="flex-1" onClick={() => addToCart(false)} disabled={!variant} loading={busy === 'cart'}>
+                  Add to cart
+                </Button>
+              </>
+            )}
             <Button size="lg" variant="outline" onClick={toggleWish} aria-pressed={wish} aria-label={wish ? 'Remove from wishlist' : 'Save to wishlist'} className="px-3">
               <Heart className={clsx('size-5', wish && 'fill-sindoor text-sindoor')} />
             </Button>
           </div>
+          {outOfStock && !alertFor('BACK_IN_STOCK') && (
+            <p className="mt-2 text-sm text-ink-soft">This one is sold out for now. Tap the button and we&apos;ll let you know as soon as it&apos;s in stock again.</p>
+          )}
           {variant && <p className="mt-2 text-xs text-ink-faint">SKU {variant.sku}</p>}
 
           {product.highlights.length > 0 && (
@@ -332,6 +400,34 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
         </div>
       </aside>
     </div>
+  );
+}
+
+function PriceDropToggle({ on, busy, onToggle }: { on: boolean; busy: boolean; onToggle: () => void }) {
+  if (on) {
+    return (
+      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-sm text-padma-dark" role="status">
+        <BellRing className="size-4 shrink-0" aria-hidden />
+        <span className="font-medium">We&apos;ll tell you if the price drops</span>
+        <span aria-hidden className="text-ink-faint">
+          ·
+        </span>
+        <button type="button" onClick={onToggle} disabled={busy} className="font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:opacity-50">
+          Cancel
+        </button>
+      </p>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={busy}
+      className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-semibold text-padma underline-offset-2 hover:underline disabled:opacity-50"
+    >
+      <TrendingDown className="size-4" aria-hidden />
+      Alert me if the price drops
+    </button>
   );
 }
 

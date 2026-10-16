@@ -1,4 +1,4 @@
-import { Coins, CreditCard, MessageSquare, PackageCheck, Ticket, Truck, Undo2 } from 'lucide-react';
+import { BellRing, Coins, CreditCard, LifeBuoy, MessageSquare, PackageCheck, Ticket, Truck, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { OrderSummary, StatusBadge } from '@/components/store/order-bits';
 import { date, tk } from '@/lib/format';
@@ -10,7 +10,13 @@ interface OrderList {
 }
 
 export default async function AccountHome() {
-  const [me, orders, vouchers] = await Promise.all([getMe(), serverApi<OrderList>('/orders'), serverApi<{ state: string }[]>('/vouchers/mine')]);
+  const [me, orders, vouchers, tickets, alerts] = await Promise.all([
+    getMe(),
+    serverApi<OrderList>('/orders'),
+    serverApi<{ state: string }[]>('/vouchers/mine'),
+    serverApi<{ status: string }[]>('/support/tickets'),
+    serverApi<{ notifiedAt: string | null }[]>('/alerts'),
+  ]);
   const counts = orders?.counts ?? {};
   const tiles = [
     { tab: 'to-pay', label: 'To pay', icon: CreditCard },
@@ -20,12 +26,14 @@ export default async function AccountHome() {
     { tab: 'returns', label: 'Returns and cancellations', icon: Undo2 },
   ];
   const usable = (vouchers ?? []).filter((v) => v.state === 'available').length;
+  const replied = (tickets ?? []).filter((t) => t.status === 'PENDING').length;
+  const watching = (alerts ?? []).filter((a) => !a.notifiedAt).length;
 
   return (
     <div className="space-y-4">
       <section className="rounded-[var(--radius-card)] border border-line bg-white p-4 sm:p-5">
         <h1 className="text-xl font-bold">Hello, {me.user?.name.split(' ')[0]}</h1>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Link href="/account/coins" className="flex items-center gap-3 rounded-md bg-marigold-tint p-3 hover:ring-1 hover:ring-marigold">
             <Coins className="size-6 text-marigold-dark" />
             <span>
@@ -38,6 +46,22 @@ export default async function AccountHome() {
             <span>
               <span className="block text-xl font-bold leading-tight">{usable}</span>
               <span className="text-sm text-ink-soft">Vouchers ready</span>
+            </span>
+          </Link>
+          <Link href="/account/alerts" className="flex items-center gap-3 rounded-md bg-paper p-3 hover:ring-1 hover:ring-ink-faint">
+            <BellRing className="size-6 text-padma" />
+            <span>
+              <span className="block text-xl font-bold leading-tight">{watching}</span>
+              <span className="text-sm text-ink-soft">Price and stock alerts</span>
+            </span>
+          </Link>
+          <Link href="/account/support" className="flex items-center gap-3 rounded-md bg-paper p-3 hover:ring-1 hover:ring-ink-faint">
+            <LifeBuoy className="size-6 text-padma" />
+            <span>
+              <span className="block text-[15px] font-semibold leading-tight">Help and support</span>
+              <span className={replied > 0 ? 'text-sm font-semibold text-padma' : 'text-sm text-ink-soft'}>
+                {replied > 0 ? `We replied to ${replied}` : 'Ask us anything'}
+              </span>
             </span>
           </Link>
         </div>
