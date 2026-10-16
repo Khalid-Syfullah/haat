@@ -7,7 +7,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 
-const API = process.env.API_URL || 'http://localhost:4000/api';
+// API_URL is the API's origin (the same variable the web app uses); "/api" is added if missing.
+const API_ORIGIN = (process.env.API_URL || 'http://localhost:4000').replace(/\/+$/, '');
+const API = API_ORIGIN.endsWith('/api') ? API_ORIGIN : `${API_ORIGIN}/api`;
 const prisma = new PrismaClient();
 let failures = 0;
 
