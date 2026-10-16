@@ -9,7 +9,8 @@ import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: courier webhooks verify signatures over the exact bytes they sent
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const uploadDir = resolve(process.env.UPLOAD_DIR || './uploads');
   mkdirSync(uploadDir, { recursive: true });
 

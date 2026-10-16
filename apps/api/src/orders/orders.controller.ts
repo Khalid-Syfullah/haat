@@ -81,8 +81,23 @@ export class OrdersController {
       where: { orderNo, userId: user.id },
       include: {
         items: { include: { returns: true, review: true, variant: { select: { product: { select: { slug: true, returnDays: true } } } } } },
-        events: { orderBy: { createdAt: 'asc' } },
+        // Staff notes and other internal entries stay in the admin panel
+        events: {
+          where: { internal: false },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, status: true, title: true, note: true, actor: true, createdAt: true },
+        },
         payments: { orderBy: { createdAt: 'desc' } },
+        shipments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            courier: true,
+            trackingCode: true,
+            state: true,
+            events: { orderBy: { createdAt: 'desc' }, take: 10, select: { status: true, message: true, createdAt: true } },
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException('Order not found');

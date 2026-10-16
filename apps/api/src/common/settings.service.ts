@@ -40,6 +40,18 @@ export const DEFAULT_SETTINGS = {
     onlinePaymentExpiryMinutes: 30,
     maxQtyPerItem: 10,
   },
+  alerts: {
+    /** Text customers about price drops, restocks and abandoned carts (in-app notices are always sent). */
+    smsEnabled: true,
+    /** Remind about a cart left untouched this many hours (0 turns reminders off). */
+    abandonedCartHours: 6,
+    /** Don't remind about carts older than this. */
+    abandonedCartMaxDays: 3,
+  },
+  support: {
+    /** Text the customer when staff reply to a ticket. */
+    smsOnReply: true,
+  },
   returns: {
     windowDays: 7,
     reasons: [

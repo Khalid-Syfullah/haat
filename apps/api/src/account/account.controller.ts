@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 class UpdateProfileDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(60) name?: string;
   @IsOptional() @IsEmail() email?: string;
+  /** SMS for price drops, restocks and cart reminders. */
+  @IsOptional() @IsBoolean() marketingSms?: boolean;
 }
 
 class ChangePasswordDto {
@@ -45,7 +47,7 @@ export class AccountController {
       const taken = await this.prisma.user.findFirst({ where: { email, NOT: { id: auth.id } } });
       if (taken) throw new BadRequestException('That email is already used by another account');
     }
-    const user = await this.prisma.user.update({ where: { id: auth.id }, data: { name: dto.name?.trim(), email } });
+    const user = await this.prisma.user.update({ where: { id: auth.id }, data: { name: dto.name?.trim(), email, marketingSms: dto.marketingSms } });
     return { user: publicUser(user) };
   }
 

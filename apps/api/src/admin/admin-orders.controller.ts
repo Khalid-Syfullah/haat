@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query } from '@nestjs/common';
-import { CoinReason, MovementReason, OrderStatus, PaymentMethod, PaymentStatus, Prisma, RefundMethod, ReturnStatus, Role } from '@prisma/client';
+import { CoinReason, MovementReason, OrderStatus, PaymentMethod, PaymentStatus, Permission, Prisma, RefundMethod, ReturnStatus } from '@prisma/client';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { AuthUser, CurrentUser, Roles } from '../common/auth';
+import { Audit } from '../common/audit';
+import { AuthUser, CurrentUser, Perm } from '../common/auth';
 import { EngagementService } from '../common/engagement.service';
 import { ZONE_LABELS } from '../common/locations';
 import { clamp, toBool, toInt } from '../common/utils';
-import { OrderWorkflowService, TRANSITIONS } from '../orders/order-workflow.service';
+import { OrderWorkflowService, STATUS_TITLES, TRANSITIONS } from '../orders/order-workflow.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 class TransitionDto {
@@ -34,7 +35,7 @@ class RefundDto {
 
 export const COURIERS = ['Steadfast', 'Pathao Courier', 'RedX', 'Paperfly', 'eCourier', 'Sundarban Courier', 'Own rider'];
 
-@Roles(Role.ADMIN)
+@Perm(Permission.ORDERS)
 @Controller('admin')
 export class AdminOrdersController {
   constructor(
@@ -106,6 +107,8 @@ export class AdminOrdersController {
         payments: { orderBy: { createdAt: 'desc' } },
         returns: { orderBy: { createdAt: 'desc' } },
         user: { select: { id: true, name: true, phone: true, email: true, codBlocked: true, createdAt: true } },
+        shipments: { orderBy: { createdAt: 'desc' }, include: { events: { orderBy: { createdAt: 'desc' }, take: 30 } } },
+        tickets: { orderBy: { createdAt: 'desc' }, select: { id: true, ticketNo: true, subject: true, status: true, createdAt: true } },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -124,11 +127,18 @@ export class AdminOrdersController {
   }
 
   @HttpCode(200)
+  @Audit({
+    action: 'order.status',
+    entity: 'order',
+    summary: ({ body, result }) =>
+      `Order ${result?.orderNo ?? ''}: ${STATUS_TITLES[body.to as OrderStatus] ?? body.to}${body.reason ? ` (${body.reason})` : ''}${body.trackingNo ? ` · ${body.courier} ${body.trackingNo}` : ''}`,
+  })
   @Post('orders/:id/transition')
   async transition(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: TransitionDto) {
     await this.workflow.transition(id, dto.to, {
       actor: 'admin',
       actorId: user.id,
+      actorName: user.name,
       note: dto.note,
       reason: dto.reason,
       courier: dto.courier,
@@ -138,23 +148,26 @@ export class AdminOrdersController {
   }
 
   @HttpCode(200)
+  @Audit({ action: 'order.note', entity: 'order', summary: ({ result }) => `Note on order ${result?.orderNo ?? ''}` })
   @Post('orders/:id/note')
   async note(@Param('id') id: string, @Body() dto: NoteDto, @CurrentUser() user: AuthUser) {
-    await this.prisma.orderEvent.create({ data: { orderId: id, title: 'Staff note', note: dto.note, actor: 'admin' } });
-    void user;
+    await this.prisma.orderEvent.create({
+      data: { orderId: id, title: 'Staff note', note: dto.note, actor: 'admin', actorId: user.id, actorName: user.name, internal: true },
+    });
     return this.order(id);
   }
 
   /** Records that a refund owed on a cancelled or failed prepaid order was paid out. */
   @HttpCode(200)
+  @Audit({ action: 'order.refund', entity: 'order', summary: ({ result }) => `Refund recorded for order ${result?.orderNo ?? ''}` })
   @Post('orders/:id/refunded')
-  async markRefunded(@Param('id') id: string, @Body() dto: RefundDto) {
+  async markRefunded(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RefundDto) {
     const order = await this.prisma.order.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
     if (order.paymentStatus !== PaymentStatus.REFUND_PENDING) throw new BadRequestException('No refund is pending on this order');
     await this.prisma.$transaction([
       this.prisma.order.update({ where: { id }, data: { paymentStatus: PaymentStatus.REFUNDED } }),
-      this.prisma.orderEvent.create({ data: { orderId: id, title: 'Refund sent', note: dto.note, actor: 'admin' } }),
+      this.prisma.orderEvent.create({ data: { orderId: id, title: 'Refund sent', note: dto.note, actor: 'admin', actorId: user.id, actorName: user.name } }),
       this.prisma.notification.create({
         data: {
           userId: order.userId,
@@ -200,6 +213,13 @@ export class AdminOrdersController {
   }
 
   @HttpCode(200)
+  @Audit({
+    action: 'return.decision',
+    entity: 'return',
+    summary: ({ body, result }) =>
+      ({ approve: 'Approved', reject: 'Rejected', receive: 'Received', refund: 'Refunded' } as Record<string, string>)[body.action] +
+      ` return of ${result?.quantity ?? ''} item(s)${body.action === 'refund' && result?.refundAmount != null ? ` · ৳${result.refundAmount} as ${String(result.refundMethod).toLowerCase()}` : ''}`,
+  })
   @Post('returns/:id/decision')
   async decide(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ReturnDecisionDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -268,7 +288,14 @@ export class AdminOrdersController {
 
       const updated = await tx.returnRequest.update({ where: { id }, data: { ...data, status } });
       await tx.orderEvent.create({
-        data: { orderId: ret.orderId, title: `Return ${status.toLowerCase()}`, note: `${ret.quantity} × ${item.title}${dto.note ? ` — ${dto.note}` : ''}`, actor: 'admin' },
+        data: {
+          orderId: ret.orderId,
+          title: `Return ${status.toLowerCase()}`,
+          note: `${ret.quantity} × ${item.title}${dto.note ? ` — ${dto.note}` : ''}`,
+          actor: 'admin',
+          actorId: user.id,
+          actorName: user.name,
+        },
       });
       await this.engagement.notify(tx, ret.userId, { type: 'return', title: `Return ${status.toLowerCase()}`, body: message, link: '/account/returns' });
       return updated;

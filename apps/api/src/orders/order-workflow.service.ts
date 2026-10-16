@@ -35,6 +35,8 @@ export const STATUS_TITLES: Record<OrderStatus, string> = {
 export interface TransitionInput {
   actor: Actor;
   actorId?: string;
+  /** Staff member's name, shown on the admin timeline only. */
+  actorName?: string;
   note?: string;
   reason?: string;
   courier?: string;
@@ -112,7 +114,15 @@ export class OrderWorkflowService {
     if (to === 'DELIVERED') await this.onDelivered(tx, order);
 
     await tx.orderEvent.create({
-      data: { orderId: order.id, status: to, title: STATUS_TITLES[to], note: eventNote, actor: input.actor },
+      data: {
+        orderId: order.id,
+        status: to,
+        title: STATUS_TITLES[to],
+        note: eventNote,
+        actor: input.actor,
+        actorId: input.actor === 'admin' ? input.actorId : undefined,
+        actorName: input.actor === 'admin' ? input.actorName : undefined,
+      },
     });
     await this.engagement.notify(tx, order.userId, this.customerMessage(order, to, input));
     return tx.order.findUnique({ where: { id: order.id } });
