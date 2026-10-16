@@ -277,7 +277,7 @@ export function CatalogImport() {
             </p>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => input.current?.click()} disabled={busy}>
-                Upload another file
+                {plan.errors.length ? 'Upload the fixed file' : 'Upload another file'}
               </Button>
               <Button onClick={apply} loading={phase === 'applying'} disabled={busy || plan.errors.length > 0 || changed.length === 0}>
                 Apply changes

@@ -151,7 +151,7 @@ function HistoryModal({ variant, onClose }: { variant: { id: string; sku: string
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-ink-soft">No stock movements recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-[6px] border border-line">
+          <div className="relative overflow-x-auto rounded-[6px] border border-line">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
                 <tr>

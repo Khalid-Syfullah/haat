@@ -39,7 +39,7 @@ export default async function FlashSalesPage() {
         {rows.length === 0 ? (
           <EmptyState icon={<Zap className="size-8" />} title="No flash sales yet" body="Create one, pick the variants and set their flash prices." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr>

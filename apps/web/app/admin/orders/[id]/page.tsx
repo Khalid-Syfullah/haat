@@ -105,7 +105,25 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
               )}
             </Panel>
 
-            {o.shipments.length > 0 && <ShipmentPanel shipments={o.shipments} couriers={couriers} />}
+            {o.shipments.length > 0 && (
+              <ShipmentPanel
+                shipments={o.shipments}
+                couriers={couriers}
+                orderStatus={o.status}
+                booking={{
+                  id: o.id,
+                  orderNo: o.orderNo,
+                  shipName: o.shipName,
+                  shipPhone: o.shipPhone,
+                  shipLine: o.shipLine,
+                  shipArea: o.shipArea,
+                  shipDistrict: o.shipDistrict,
+                  total: o.total,
+                  paymentStatus: o.paymentStatus,
+                  note: o.note,
+                }}
+              />
+            )}
           </div>
 
           <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">

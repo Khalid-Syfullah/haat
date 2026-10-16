@@ -254,12 +254,12 @@ function BulkBar() {
           </div>
         )}
         {isStock(action) && (
-          <div className="min-w-0 flex-1 sm:max-w-xs">
+          <div className="w-full sm:w-auto sm:min-w-0 sm:flex-1 sm:basis-56 sm:max-w-xs">
             <Input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Why is stock changing?" aria-label="Reason for the stock change" aria-invalid={!!errors.note} />
             <span className={errors.note ? 'mt-1 block text-sm text-sindoor' : 'mt-1 block text-xs text-ink-soft'}>{errors.note ?? 'Saved in each SKU’s stock history'}</span>
           </div>
         )}
-        <Button type="submit" loading={busy === 'bulk' && !confirm} className="sm:ml-auto">
+        <Button type="submit" loading={busy === 'bulk' && !confirm} className={meta?.unit ? 'flex-1 sm:ml-auto sm:flex-none' : 'w-full sm:ml-auto sm:w-auto'}>
           Apply to {count}
         </Button>
       </form>

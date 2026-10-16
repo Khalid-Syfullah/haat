@@ -365,7 +365,8 @@ export class AdminCatalogController {
   @Get('inventory')
   async inventory(@Query() query: Record<string, string>) {
     const page = clamp(toInt(query.page, 1), 1, 1000);
-    const where: Prisma.ProductVariantWhereInput = { isActive: true, product: { status: { not: 'ARCHIVED' } } };
+    // Hidden SKUs stay reachable with ?hidden=true so they can be shown in the store again.
+    const where: Prisma.ProductVariantWhereInput = { product: { status: { not: 'ARCHIVED' } }, ...(toBool(query.hidden) ? {} : { isActive: true }) };
     if (query.q) {
       where.OR = [
         { sku: { contains: query.q, mode: 'insensitive' } },
@@ -377,7 +378,7 @@ export class AdminCatalogController {
       include: { product: { select: { id: true, title: true, slug: true, images: { take: 1, orderBy: { sortOrder: 'asc' } } } } },
       orderBy: [{ stock: 'asc' }, { sku: 'asc' }],
     });
-    if (toBool(query.lowOnly)) rows = rows.filter((v) => v.stock <= v.lowStockThreshold);
+    if (toBool(query.lowOnly)) rows = rows.filter((v) => v.isActive && v.stock <= v.lowStockThreshold);
     const total = rows.length;
     const items = rows.slice((page - 1) * 50, page * 50).map((v) => ({
       id: v.id,
@@ -386,7 +387,10 @@ export class AdminCatalogController {
       stock: v.stock,
       lowStockThreshold: v.lowStockThreshold,
       low: v.stock <= v.lowStockThreshold,
+      isActive: v.isActive,
       price: v.salePrice ?? v.price,
+      regularPrice: v.price,
+      salePrice: v.salePrice,
       product: { id: v.product.id, title: v.product.title, slug: v.product.slug, image: v.product.images[0]?.url ?? null },
     }));
     return { items, total, page, pages: Math.max(1, Math.ceil(total / 50)) };

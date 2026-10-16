@@ -794,7 +794,7 @@ export function ProductEditor({ product, categories, brands }: { product?: Admin
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr>

@@ -106,7 +106,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             body={filtered ? 'Clear the search or pick another status or category.' : 'Add your first product to start selling.'}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr>

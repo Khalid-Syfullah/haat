@@ -36,7 +36,7 @@ export function BrandManager({ brands }: { brands: BrandRow[] }) {
       {brands.length === 0 ? (
         <EmptyState icon={<Tags className="size-8" />} title="No brands yet" body="Add the brands you sell so shoppers can filter by them." />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr>

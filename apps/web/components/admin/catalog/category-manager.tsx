@@ -32,7 +32,7 @@ export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
       {rows.length === 0 ? (
         <EmptyState icon={<Layers className="size-8" />} title="No categories yet" body="Add a top-level category such as Electronics, then add sub-categories under it." />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr>

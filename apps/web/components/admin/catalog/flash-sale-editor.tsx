@@ -247,7 +247,7 @@ export function FlashSaleEditor({ sale }: { sale?: FlashSaleRow }) {
         {items.length === 0 ? (
           <p className="px-4 py-8 text-center text-ink-soft">No items yet. Search for a product above and add its variants.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[920px] text-sm">
               <thead>
                 <tr>
