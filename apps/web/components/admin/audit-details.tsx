@@ -47,6 +47,25 @@ export function recordLink(entity: string | null, entityId: string | null): { hr
   return { href: `${target.path}/${encodeURIComponent(entityId)}`, label: target.label };
 }
 
+/**
+ * Job runs are summarised by the API with their raw result, e.g. `Ran "X": {"sent":2}`.
+ * Show the counts in words instead: `Ran "X": 2 sent`.
+ */
+export function readableSummary(summary: string): string {
+  const m = summary.match(/^(.*): (\{[^{}]*\})$/);
+  if (!m) return summary;
+  try {
+    const counts = JSON.parse(m[2]) as Record<string, unknown>;
+    if (counts.skipped) return `${m[1]}: skipped, it was already running`;
+    const words = Object.entries(counts)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([k, v]) => `${v} ${k}`);
+    return words.length ? `${m[1]}: ${words.join(', ')}` : m[1];
+  } catch {
+    return summary;
+  }
+}
+
 /** "variantIds" → "Variant ids", "free_shipping" → "Free shipping". */
 function keyLabel(key: string) {
   const words = key
@@ -66,9 +85,9 @@ function Value({ value }: { value: unknown }) {
   if (value === '[hidden]') return <span className="text-ink-faint">hidden</span>;
   if (typeof value === 'boolean') return <>{value ? 'Yes' : 'No'}</>;
   if (typeof value === 'number') return <span className="tabular-nums">{value}</span>;
-  if (typeof value === 'string') return <span className="break-words whitespace-pre-wrap">{value}</span>;
+  if (typeof value === 'string') return <span className="whitespace-pre-wrap wrap-anywhere">{value}</span>;
   if (Array.isArray(value) && value.every((v) => v === null || ['string', 'number', 'boolean'].includes(typeof v))) {
-    return value.length ? <span className="break-words">{value.join(', ')}</span> : <span className="text-ink-faint">none</span>;
+    return value.length ? <span className="wrap-anywhere">{value.join(', ')}</span> : <span className="text-ink-faint">none</span>;
   }
   return <pre className="overflow-x-auto rounded bg-paper px-2 py-1.5 font-mono text-xs leading-relaxed text-ink">{JSON.stringify(value, null, 2)}</pre>;
 }

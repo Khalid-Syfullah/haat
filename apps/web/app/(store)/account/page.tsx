@@ -52,15 +52,15 @@ export default async function AccountHome() {
             <BellRing className="size-6 text-padma" />
             <span>
               <span className="block text-xl font-bold leading-tight">{watching}</span>
-              <span className="text-sm text-ink-soft">Price and stock alerts</span>
+              <span className="text-sm text-ink-soft">Alerts waiting</span>
             </span>
           </Link>
           <Link href="/account/support" className="flex items-center gap-3 rounded-md bg-paper p-3 hover:ring-1 hover:ring-ink-faint">
             <LifeBuoy className="size-6 text-padma" />
             <span>
-              <span className="block text-[15px] font-semibold leading-tight">Help and support</span>
+              <span className="block text-xl font-bold leading-tight">Help</span>
               <span className={replied > 0 ? 'text-sm font-semibold text-padma' : 'text-sm text-ink-soft'}>
-                {replied > 0 ? `We replied to ${replied}` : 'Ask us anything'}
+                {replied > 0 ? `${replied} new ${replied === 1 ? 'reply' : 'replies'}` : 'Ask us anything'}
               </span>
             </span>
           </Link>

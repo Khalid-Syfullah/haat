@@ -201,7 +201,7 @@ export class AdminStaffController {
       this.prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
       this.prisma.auditLog.count({ where }),
       this.prisma.auditLog.groupBy({ by: ['entity'], _count: { _all: true }, orderBy: { entity: 'asc' } }),
-      this.prisma.auditLog.groupBy({ by: ['actorId', 'actorName'], _count: { _all: true }, orderBy: { actorName: 'asc' } }),
+      this.prisma.auditLog.groupBy({ by: ['actorId'], where: { actorId: { not: null } }, _count: { _all: true } }),
     ]);
     return {
       items,
@@ -209,8 +209,15 @@ export class AdminStaffController {
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
       entities: entities.filter((e) => e.entity).map((e) => ({ entity: e.entity, count: e._count._all })),
-      actors: actors.filter((a) => a.actorId).map((a) => ({ id: a.actorId, name: a.actorName, count: a._count._all })),
+      // Grouped by person, named as they are called now (a rename doesn't split them)
+      actors: await this.actorNames(actors.map((a) => ({ id: a.actorId!, count: a._count._all }))),
     };
+  }
+
+  private async actorNames(rows: { id: string; count: number }[]) {
+    const users = await this.prisma.user.findMany({ where: { id: { in: rows.map((r) => r.id) } }, select: { id: true, name: true } });
+    const name = new Map(users.map((u) => [u.id, u.name]));
+    return rows.map((r) => ({ ...r, name: name.get(r.id) ?? 'Removed account' })).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   @Get('sms-log')

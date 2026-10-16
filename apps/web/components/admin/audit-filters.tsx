@@ -19,7 +19,20 @@ function Labelled({ label, htmlFor, children }: { label: string; htmlFor: string
 }
 
 /** Select bound to one query param. */
-export function AuditSelect({ param, label, options, allLabel }: { param: string; label: string; options: { value: string; label: string }[]; allLabel: string }) {
+export function AuditSelect({
+  param,
+  label,
+  options,
+  allLabel,
+  otherLabel = 'Selected',
+}: {
+  param: string;
+  label: string;
+  options: { value: string; label: string }[];
+  allLabel: string;
+  /** Shown when the URL names a value with no entries yet. */
+  otherLabel?: string;
+}) {
   const { go, params } = useQueryNav();
   const id = `audit-${param}`;
   const value = params.get(param) ?? '';
@@ -29,7 +42,7 @@ export function AuditSelect({ param, label, options, allLabel }: { param: string
     <Labelled label={label} htmlFor={id}>
       <select id={id} value={value} onChange={(e) => go({ [param]: e.target.value })} className={`${fieldClass} pr-8 pl-3`}>
         <option value="">{allLabel}</option>
-        {!known && <option value={value}>Selected</option>}
+        {!known && <option value={value}>{otherLabel}</option>}
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

@@ -1,10 +1,10 @@
 import { History, Info, MessageSquareText } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { areaLabel, AuditDetails, RecordLink } from '@/components/admin/audit-details';
-import { AuditDateRange } from '@/components/admin/audit-filters';
+import { areaLabel, AuditDetails, readableSummary, RecordLink } from '@/components/admin/audit-details';
+import { AuditDateRange, AuditFilterGrid, AuditSelect } from '@/components/admin/audit-filters';
 import { flatParams, hrefWith, LinkTabs, Panel, Table, TableWrap, Td, Th } from '@/components/admin/bits';
-import { FilterSelect, SearchBox, Toolbar, UrlPagination } from '@/components/admin/controls';
+import { SearchBox, Toolbar, UrlPagination } from '@/components/admin/controls';
 import { AdminHeader } from '@/components/admin/shell';
 import { Badge, EmptyState } from '@/components/ui';
 import { dateTime } from '@/lib/format';
@@ -111,25 +111,29 @@ async function ActivityTab({ sp }: { sp: Record<string, string> }) {
   return (
     <>
       <Toolbar>
-        <SearchBox placeholder="Search what changed or who did it" label="Search activity" />
-        <FilterSelect
-          param="actorId"
-          label="Person"
-          allLabel="Everyone"
-          options={[...people].map(([id, p]) => ({ value: id, label: `${p.name} (${p.count})` }))}
-        />
-        <FilterSelect
-          param="entity"
-          label="Area"
-          allLabel="All areas"
-          options={data.entities
-            .map((e) => ({ value: e.entity, label: `${areaLabel(e.entity)} (${e.count})` }))
-            .sort((a, b) => a.label.localeCompare(b.label))}
-        />
-        <AuditDateRange />
+        <SearchBox placeholder="Search what changed or who did it" label="Search activity" className="sm:min-w-72" />
+        <AuditFilterGrid>
+          <AuditSelect
+            param="actorId"
+            label="Person"
+            allLabel="Everyone"
+            otherLabel="Selected person"
+            options={[...people].map(([id, p]) => ({ value: id, label: `${p.name} (${p.count})` }))}
+          />
+          <AuditSelect
+            param="entity"
+            label="Area"
+            allLabel="All areas"
+            otherLabel={sp.entity ? areaLabel(sp.entity) : 'Selected area'}
+            options={data.entities
+              .map((e) => ({ value: e.entity, label: `${areaLabel(e.entity)} (${e.count})` }))
+              .sort((a, b) => a.label.localeCompare(b.label))}
+          />
+          <AuditDateRange />
+        </AuditFilterGrid>
       </Toolbar>
 
-      <p className="mb-2 text-sm text-ink-soft" aria-live="polite">
+      <p className={data.total || filtered ? 'mb-2 text-sm text-ink-soft' : 'sr-only'} aria-live="polite">
         {plural(data.total, 'change')}
         {filtered ? ' match' : ' so far'}
         {sp.entityId && (
@@ -159,21 +163,27 @@ async function ActivityTab({ sp }: { sp: Record<string, string> }) {
             <Table>
               <thead>
                 <tr>
-                  <Th>Time</Th>
-                  <Th>Person</Th>
-                  <Th>What happened</Th>
+                  <Th>
+                    Time<span className="sm:hidden"> and person</span>
+                  </Th>
+                  <Th className="hidden sm:table-cell">Person</Th>
+                  <Th className="w-full">What happened</Th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((e) => (
                   <tr key={e.id} className="hover:bg-paper/60">
-                    <Td className="align-top! whitespace-nowrap text-ink-soft tabular-nums">{dateTime(e.createdAt)}</Td>
-                    <Td className="min-w-40 align-top!">
-                      <span className="block font-medium whitespace-nowrap text-ink">{e.actorName ?? 'System'}</span>
-                      {e.actorRole && <span className="block text-xs text-ink-soft">{e.actorRole === 'ADMIN' ? 'Owner' : 'Staff'}</span>}
+                    <Td className="align-top! whitespace-nowrap">
+                      <span className="block text-ink-soft tabular-nums">{dateTime(e.createdAt)}</span>
+                      <span className="mt-1 block sm:hidden">
+                        <Person entry={e} />
+                      </span>
                     </Td>
-                    <Td className="min-w-72 align-top!">
-                      <p className="break-words text-ink">{e.summary}</p>
+                    <Td className="hidden align-top! whitespace-nowrap sm:table-cell">
+                      <Person entry={e} />
+                    </Td>
+                    <Td className="min-w-48 align-top! sm:min-w-72">
+                      <p className="text-ink wrap-anywhere">{readableSummary(e.summary)}</p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
                         <span>{areaLabel(e.entity)}</span>
                         <RecordLink entity={e.entity} entityId={e.entityId} />
@@ -190,6 +200,15 @@ async function ActivityTab({ sp }: { sp: Record<string, string> }) {
       <div className="mt-4">
         <UrlPagination page={data.page} pages={data.pages} />
       </div>
+    </>
+  );
+}
+
+function Person({ entry }: { entry: AuditEntry }) {
+  return (
+    <>
+      <span className="block font-medium text-ink">{entry.actorName ?? 'System'}</span>
+      {entry.actorRole && <span className="block text-xs text-ink-soft">{entry.actorRole === 'ADMIN' ? 'Owner' : 'Staff'}</span>}
     </>
   );
 }
@@ -216,10 +235,12 @@ async function SmsTab({ sp }: { sp: Record<string, string> }) {
 
       <Toolbar>
         <SearchBox placeholder="Phone number" label="Search by phone number" />
-        <FilterSelect param="kind" label="Type" allLabel="All types" options={Object.entries(SMS_KIND).map(([value, label]) => ({ value, label }))} />
+        <AuditFilterGrid>
+          <AuditSelect param="kind" label="Type" allLabel="All types" options={Object.entries(SMS_KIND).map(([value, label]) => ({ value, label }))} />
+        </AuditFilterGrid>
       </Toolbar>
 
-      <p className="mb-2 text-sm text-ink-soft" aria-live="polite">
+      <p className={data.total || filtered ? 'mb-2 text-sm text-ink-soft' : 'sr-only'} aria-live="polite">
         {plural(data.total, 'message')}
         {filtered ? ' match' : ' so far'}
       </p>
@@ -240,32 +261,44 @@ async function SmsTab({ sp }: { sp: Record<string, string> }) {
             <Table>
               <thead>
                 <tr>
-                  <Th>Time</Th>
-                  <Th>Phone</Th>
-                  <Th>Type</Th>
-                  <Th>Status</Th>
-                  <Th>Message</Th>
+                  <Th>
+                    Time<span className="sm:hidden"> and phone</span>
+                  </Th>
+                  <Th className="hidden sm:table-cell">Phone</Th>
+                  <Th className="hidden sm:table-cell">Type</Th>
+                  <Th className="hidden sm:table-cell">Status</Th>
+                  <Th className="w-full">Message</Th>
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((m) => (
-                  <tr key={m.id} className="hover:bg-paper/60">
-                    <Td className="align-top! whitespace-nowrap text-ink-soft tabular-nums">{dateTime(m.createdAt)}</Td>
-                    <Td className="align-top! whitespace-nowrap tabular-nums">{m.phone}</Td>
-                    <Td className="align-top! whitespace-nowrap">
-                      <Badge tone={m.kind === 'otp' ? 'blue' : 'neutral'}>{SMS_KIND[m.kind] ?? m.kind}</Badge>
-                    </Td>
-                    <Td className="min-w-32 align-top!">
-                      <span className="whitespace-nowrap">
-                        <SmsStatus status={m.status} />
-                      </span>
-                      {m.status === 'failed' && m.error && <span className="mt-1 block max-w-56 text-xs break-words text-sindoor">{m.error}</span>}
-                    </Td>
-                    <Td className="min-w-72 align-top!">
-                      <p className="max-w-xl break-words whitespace-pre-wrap text-ink">{m.body}</p>
-                    </Td>
-                  </tr>
-                ))}
+                {data.items.map((m) => {
+                  const kind = <Badge tone={m.kind === 'otp' ? 'blue' : 'neutral'}>{SMS_KIND[m.kind] ?? m.kind}</Badge>;
+                  const error = m.status === 'failed' && m.error && <span className="mt-1 block max-w-56 text-xs text-sindoor wrap-anywhere">{m.error}</span>;
+                  return (
+                    <tr key={m.id} className="hover:bg-paper/60">
+                      <Td className="align-top! whitespace-nowrap tabular-nums">
+                        <span className="block text-ink-soft">{dateTime(m.createdAt)}</span>
+                        <span className="mt-1 block font-medium text-ink sm:hidden">{m.phone}</span>
+                      </Td>
+                      <Td className="hidden align-top! whitespace-nowrap tabular-nums sm:table-cell">{m.phone}</Td>
+                      <Td className="hidden align-top! whitespace-nowrap sm:table-cell">{kind}</Td>
+                      <Td className="hidden min-w-32 align-top! sm:table-cell">
+                        <span className="whitespace-nowrap">
+                          <SmsStatus status={m.status} />
+                        </span>
+                        {error}
+                      </Td>
+                      <Td className="min-w-48 align-top! sm:min-w-72">
+                        <span className="mb-1.5 flex flex-wrap gap-1 sm:hidden">
+                          {kind}
+                          <SmsStatus status={m.status} />
+                        </span>
+                        <p className="max-w-xl whitespace-pre-wrap text-ink wrap-anywhere">{m.body}</p>
+                        <span className="sm:hidden">{error}</span>
+                      </Td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
           </TableWrap>

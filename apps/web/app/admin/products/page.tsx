@@ -1,4 +1,4 @@
-import { Package, Plus } from 'lucide-react';
+import { FileSpreadsheet, Package, Plus } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AdminHeader } from '@/components/admin/shell';
@@ -51,13 +51,22 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         title="Products"
         description={data ? `${data.total} product${data.total === 1 ? '' : 's'}` : undefined}
         actions={
-          <Link
-            href="/admin/products/new"
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-padma px-4 text-[15px] font-semibold text-white hover:bg-padma-dark"
-          >
-            <Plus className="size-4" aria-hidden />
-            Add product
-          </Link>
+          <>
+            <Link
+              href="/admin/products/import"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-[15px] font-semibold text-ink hover:border-ink-faint"
+            >
+              <FileSpreadsheet className="size-4" aria-hidden />
+              Import &amp; export
+            </Link>
+            <Link
+              href="/admin/products/new"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-padma px-4 text-[15px] font-semibold text-white hover:bg-padma-dark"
+            >
+              <Plus className="size-4" aria-hidden />
+              Add product
+            </Link>
+          </>
         }
       />
       <Panel>

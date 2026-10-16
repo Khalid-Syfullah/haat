@@ -35,7 +35,13 @@ export class AdminSystemController {
     };
   }
 
-  @Audit({ action: 'job.run', entity: 'job', summary: ({ params, result }) => `Ran "${JOB_INFO[params.name as JobName]?.label ?? params.name}": ${JSON.stringify(result)}` })
+  @Audit({
+    action: 'job.run',
+    entity: 'job',
+    summary: ({ params, result }) =>
+      `Ran "${JOB_INFO[params.name as JobName]?.label ?? params.name}": ` +
+      (Object.entries((result ?? {}) as Record<string, number>).map(([k, v]) => `${v} ${k}`).join(', ') || 'done'),
+  })
   @HttpCode(200)
   @Post('jobs/:name/run')
   run(@Param('name') name: string) {

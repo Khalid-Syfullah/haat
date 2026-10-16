@@ -102,8 +102,12 @@ function AlertItem({ a }: { a: AlertRow }) {
         </div>
         {a.type === 'PRICE_DROP' ? (
           <p className="mt-1 text-sm text-ink-soft">
-            {a.priceAtSubscribe != null && <>You saw {tk(a.priceAtSubscribe)} · </>}
-            <span className={clsx(dropped ? 'font-semibold text-padma' : 'text-ink')}>now {tk(a.currentPrice)}</span>
+            {a.priceAtSubscribe != null && (
+              <>
+                <span className="whitespace-nowrap">You saw {tk(a.priceAtSubscribe)}</span> ·{' '}
+              </>
+            )}
+            <span className={clsx('whitespace-nowrap', dropped ? 'font-semibold text-padma' : 'text-ink')}>now {tk(a.currentPrice)}</span>
           </p>
         ) : (
           <p className={clsx('mt-1 text-sm', a.inStock ? 'font-semibold text-padma' : 'text-ink-soft')}>{a.inStock ? 'In stock now' : 'Still sold out'}</p>
