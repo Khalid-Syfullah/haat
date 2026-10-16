@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, Shipment, ShipmentState } from '@prisma/client';
 import { AuthUser } from '../common/auth';
 import { OrderWorkflowService } from '../orders/order-workflow.service';
@@ -81,61 +81,80 @@ export class CouriersService {
   async book(orderId: string, opts: BookOptions, user: AuthUser) {
     const a = this.adapter(opts.courier);
     if (!a.configured()) throw new BadRequestException(`${a.name} is not set up on this server yet`);
-    const order = await this.prisma.order.findFirst({
-      where: { OR: [{ id: orderId }, { orderNo: orderId }] },
-      include: { items: { include: { variant: { select: { product: { select: { weightGrams: true } } } } } }, shipments: true },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    // A shipped order whose consignment the courier cancelled can be booked again.
-    const rebook = order.status === 'SHIPPED' && order.shipments.length > 0 && order.shipments.every((s) => s.state === 'CANCELLED');
-    if (order.status !== 'PACKED' && !rebook) throw new BadRequestException('Pack the order before booking a courier');
-    const active = order.shipments.find((s) => !['CANCELLED', 'RETURNED'].includes(s.state));
-    if (active) throw new BadRequestException(`This order already has a ${this.adapter(active.courier).name} consignment (${active.trackingCode})`);
+    const found = await this.prisma.order.findFirst({ where: { OR: [{ id: orderId }, { orderNo: orderId }] }, select: { id: true } });
+    if (!found) throw new NotFoundException('Order not found');
 
-    const units = order.items.reduce((s, i) => s + i.quantity, 0);
-    const weight = opts.weightGrams ?? order.items.reduce((s, i) => s + i.quantity * i.variant.product.weightGrams, 0);
-    const input: BookingInput = {
-      orderNo: order.orderNo,
-      invoice: order.shipments.length ? `${order.orderNo}-${order.shipments.length + 1}` : order.orderNo,
-      name: order.shipName,
-      phone: order.shipPhone,
-      address: `${order.shipLine}, ${order.shipArea}, ${order.shipDistrict}`,
-      district: order.shipDistrict,
-      area: order.shipArea,
-      codAmount: order.paymentStatus === 'PAID' ? 0 : order.total,
-      value: order.subtotal,
-      weightGrams: Math.max(100, weight),
-      itemCount: units,
-      itemSummary: order.items.map((i) => `${i.quantity}× ${i.title}`).join(', '),
-      note: opts.note?.trim() || order.note || undefined,
-      location: opts.location,
-    };
+    // One booking per order at a time. The order row stays locked while the courier is called and
+    // the consignment is recorded. A double click or a second staff member is turned away at once
+    // (NOWAIT), rather than queueing behind a slow courier and booking again after it.
+    const { order, rebook, input, booked, shipment } = await this.prisma.$transaction(
+      async (tx) => {
+        try {
+          await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${found.id} FOR UPDATE NOWAIT`;
+        } catch (err) {
+          // 55P03 lock_not_available: someone else is booking or updating this order right now
+          if (String(err).includes('55P03')) throw new ConflictException('This order is being booked or updated right now. Refresh the page in a moment.');
+          throw err;
+        }
+        const order = await tx.order.findUniqueOrThrow({
+          where: { id: found.id },
+          include: { items: { include: { variant: { select: { product: { select: { weightGrams: true } } } } } }, shipments: true },
+        });
+        // A shipped order whose consignment the courier cancelled can be booked again.
+        const rebook = order.status === 'SHIPPED' && order.shipments.length > 0 && order.shipments.every((s) => s.state === 'CANCELLED');
+        if (order.status !== 'PACKED' && !rebook) throw new BadRequestException('Pack the order before booking a courier');
+        const active = order.shipments.find((s) => !['CANCELLED', 'RETURNED'].includes(s.state));
+        if (active) throw new BadRequestException(`This order already has a ${this.adapter(active.courier).name} consignment (${active.trackingCode})`);
 
-    let booked;
-    try {
-      booked = await a.book(input);
-    } catch (err) {
-      this.logger.warn(`Booking ${order.orderNo} with ${a.name} failed: ${String(err)}`);
-      throw new BadRequestException(err instanceof CourierError ? err.message : `${a.name} did not answer. Try again in a minute.`);
-    }
+        const units = order.items.reduce((s, i) => s + i.quantity, 0);
+        const weight = opts.weightGrams ?? order.items.reduce((s, i) => s + i.quantity * i.variant.product.weightGrams, 0);
+        const input: BookingInput = {
+          orderNo: order.orderNo,
+          invoice: order.shipments.length ? `${order.orderNo}-${order.shipments.length + 1}` : order.orderNo,
+          name: order.shipName,
+          phone: order.shipPhone,
+          address: `${order.shipLine}, ${order.shipArea}, ${order.shipDistrict}`,
+          district: order.shipDistrict,
+          area: order.shipArea,
+          codAmount: order.paymentStatus === 'PAID' ? 0 : order.total,
+          value: order.subtotal,
+          weightGrams: Math.max(100, weight),
+          itemCount: units,
+          itemSummary: order.items.map((i) => `${i.quantity}× ${i.title}`).join(', '),
+          note: opts.note?.trim() || order.note || undefined,
+          location: opts.location,
+        };
 
-    // The consignment exists at the courier now, so record it before anything else can fail.
-    const shipment = await this.prisma.shipment.create({
-      data: {
-        orderId: order.id,
-        courier: a.code,
-        consignmentId: booked.consignmentId,
-        trackingCode: booked.trackingCode,
-        courierStatus: booked.courierStatus,
-        codAmount: input.codAmount,
-        deliveryFee: booked.deliveryFee,
-        note: input.note,
-        raw: (booked.raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
-        createdById: user.id,
-        lastEventAt: new Date(),
-        events: { create: { status: booked.courierStatus, message: `Booked by ${user.name}`, source: 'booking' } },
+        let booked;
+        try {
+          booked = await a.book(input);
+        } catch (err) {
+          this.logger.warn(`Booking ${order.orderNo} with ${a.name} failed: ${String(err)}`);
+          throw new BadRequestException(err instanceof CourierError ? err.message : `${a.name} did not answer. Try again in a minute.`);
+        }
+
+        // The consignment exists at the courier now, so record it before anything else can fail.
+        const shipment = await tx.shipment.create({
+          data: {
+            orderId: order.id,
+            courier: a.code,
+            consignmentId: booked.consignmentId,
+            trackingCode: booked.trackingCode,
+            courierStatus: booked.courierStatus,
+            codAmount: input.codAmount,
+            deliveryFee: booked.deliveryFee,
+            note: input.note,
+            raw: (booked.raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+            createdById: user.id,
+            lastEventAt: new Date(),
+            events: { create: { status: booked.courierStatus, message: `Booked by ${user.name}`, source: 'booking' } },
+          },
+        });
+        return { order, rebook, input, booked, shipment };
       },
-    });
+      // Courier calls time out after 35 seconds at most (Pathao: token, then booking).
+      { timeout: 60_000, maxWait: 10_000 },
+    );
     const note = `${a.name} consignment ${booked.trackingCode}${input.codAmount ? ` · collect ৳${input.codAmount}` : ' · prepaid'}`;
     if (rebook) {
       await this.prisma.$transaction(async (tx) => {
@@ -302,7 +321,27 @@ export class CouriersService {
         this.logger.warn(`Sync of ${s.courier} ${s.trackingCode} failed: ${String(err)}`);
       }
     }
-    return { checked: open.length, changed };
+    return { checked: open.length, changed, repaired: await this.repairOrders(limit) };
+  }
+
+  /**
+   * A delivered or returned parcel whose order is still "shipped": the order update after the
+   * courier's report failed (database error, restart). Runs it again. A delivered or returned
+   * consignment is never replaced by a newer one, so it alone decides the order.
+   */
+  async repairOrders(limit = 100) {
+    const stuck = await this.prisma.shipment.findMany({
+      where: { state: { in: ['DELIVERED', 'RETURNED'] }, order: { status: 'SHIPPED' } },
+      orderBy: { lastEventAt: 'asc' },
+      take: limit,
+    });
+    let repaired = 0;
+    for (const s of stuck) {
+      await this.onState(s, { consignmentId: s.consignmentId, status: s.courierStatus ?? s.state, state: s.state });
+      const order = await this.prisma.order.findUnique({ where: { id: s.orderId }, select: { status: true } });
+      if (order?.status !== 'SHIPPED') repaired++;
+    }
+    return repaired;
   }
 
   /** Test courier only: staff move the parcel along by hand. */

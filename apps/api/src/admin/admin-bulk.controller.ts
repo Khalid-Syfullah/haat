@@ -136,9 +136,13 @@ export class AdminBulkController {
               if (value! >= v.price) throw new BadRequestException(`${v.sku}: sale price must be below ৳${v.price}`);
               data.salePrice = value!;
               break;
-            case 'sale_pct_off':
-              data.salePrice = Math.max(1, Math.round((v.price * (100 - value!)) / 100));
+            case 'sale_pct_off': {
+              const sale = Math.max(1, Math.round((v.price * (100 - value!)) / 100));
+              // Small discounts on cheap items can round back to the full price (1% off ৳40 is ৳40).
+              if (sale >= v.price) throw new BadRequestException(`${v.sku}: ${value}% off ৳${v.price} rounds to the same price. Use a bigger discount or set the sale price directly.`);
+              data.salePrice = sale;
               break;
+            }
             case 'sale_clear':
               data.salePrice = null;
               break;

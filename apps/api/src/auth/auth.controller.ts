@@ -105,11 +105,16 @@ export class AuthController {
     });
     if (recent >= 3) throw new HttpException('Too many codes requested. Try again in 10 minutes.', HttpStatus.TOO_MANY_REQUESTS);
     const code = String(randomInt(100000, 999999));
-    await this.prisma.otpCode.create({
+    const otp = await this.prisma.otpCode.create({
       data: { phone, codeHash: hashOtp(phone, code), expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
     });
     const consoleMode = this.sms.provider === 'console';
-    await this.sms.send(phone, `Your Haat login code is ${code}. It expires in 5 minutes. Never share it.`, 'otp');
+    const sms = await this.sms.send(phone, `Your Haat login code is ${code}. It expires in 5 minutes. Never share it.`, 'otp');
+    if (!sms.ok) {
+      // The code never reached the phone, so it shouldn't count towards the 3-per-10-minutes limit.
+      await this.prisma.otpCode.delete({ where: { id: otp.id } });
+      throw new HttpException('We could not send the code just now. Try again in a minute.', HttpStatus.SERVICE_UNAVAILABLE);
+    }
     const isNew = !(await this.prisma.user.findUnique({ where: { phone }, select: { id: true } }));
     return { sent: true, isNewUser: isNew, ...(consoleMode && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}) };
   }

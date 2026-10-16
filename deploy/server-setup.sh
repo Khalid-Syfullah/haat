@@ -10,8 +10,8 @@ DOMAIN=production.khalidsyfullah.com
 REPO=https://github.com/Khalid-Syfullah/haat.git
 
 # Node 20.9+ and pm2 run the apps. Install Node yourself (e.g. NodeSource 22.x) if it's missing.
-NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
-if [ "$NODE_MAJOR" -lt 20 ]; then
+NODE_OK=$(node -p 'const [a, b] = process.versions.node.split(".").map(Number); a > 20 || (a === 20 && b >= 9) ? 1 : 0' 2>/dev/null || echo 0)
+if [ "$NODE_OK" != 1 ]; then
   echo "Node.js 20.9 or newer is required (found: $(node -v 2>/dev/null || echo none)). Install Node 22, then run this again." >&2
   exit 1
 fi
