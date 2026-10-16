@@ -77,12 +77,12 @@ if [ -d apps/api/uploads/seed ]; then mkdir -p "$APP/shared/uploads/seed" && cp 
 cp deploy/ecosystem.config.cjs "$APP/ecosystem.config.cjs"
 ln -sfn "$REL" "$APP/current.tmp" && mv -Tf "$APP/current.tmp" "$APP/current"
 SWITCHED=1
-pm2 startOrReload "$APP/ecosystem.config.cjs" --update-env || fail "pm2 reload"
+pm2 startOrReload "$APP/ecosystem.config.cjs" --update-env >/dev/null || fail "pm2 reload"
 
 # 6. Health check: the API answers and the storefront renders
 healthy() {
   for _ in $(seq 1 45); do
-    if curl -fsS -o /dev/null "http://127.0.0.1:$API_PORT/api/health" && curl -fsS -o /dev/null "http://127.0.0.1:$WEB_PORT/"; then
+    if curl -fs -o /dev/null "http://127.0.0.1:$API_PORT/api/health" && curl -fs -o /dev/null "http://127.0.0.1:$WEB_PORT/"; then
       return 0
     fi
     sleep 2
