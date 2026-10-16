@@ -21,15 +21,19 @@ interface InventoryRow {
   low: boolean;
   /** What the customer pays now: the sale price when there is one. */
   price: number;
+  regularPrice: number;
+  salePrice: number | null;
+  isActive: boolean;
   product: { id: string; title: string; slug: string; image: string | null };
 }
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const values = { q: sp.q ?? '', lowOnly: sp.lowOnly ?? '' };
+  const values = { q: sp.q ?? '', lowOnly: sp.lowOnly ?? '', hidden: sp.hidden ?? '' };
   const qs = new URLSearchParams({ page: sp.page ?? '1' });
   if (values.q) qs.set('q', values.q);
   if (values.lowOnly) qs.set('lowOnly', 'true');
+  if (values.hidden) qs.set('hidden', 'true');
   const data = await serverApi<{ items: InventoryRow[]; total: number; page: number; pages: number }>(`/admin/inventory?${qs}`);
   const items = data?.items ?? [];
 
@@ -47,6 +51,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           fields={[
             { type: 'search', name: 'q', label: 'Search', placeholder: 'Product title or SKU' },
             { type: 'toggle', name: 'lowOnly', label: 'Low stock only' },
+            { type: 'toggle', name: 'hidden', label: 'Include hidden SKUs' },
           ]}
         />
         {items.length === 0 ? (
@@ -56,7 +61,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             body={values.lowOnly ? 'Every variant is above its low-stock alert level.' : values.q ? 'Try another title or SKU.' : 'Add products with variants to track stock here.'}
           />
         ) : (
-          <BulkSelection key={`${values.q}|${values.lowOnly}|${data?.page ?? 1}`} ids={items.map((v) => v.id)}>
+          <BulkSelection key={`${values.q}|${values.lowOnly}|${values.hidden}|${data?.page ?? 1}`} ids={items.map((v) => v.id)}>
             <div className="relative overflow-x-auto">
               <table className="w-full min-w-[920px] text-sm">
                 <thead>
@@ -90,17 +95,28 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
                       <td className={td}>
                         <Thumb src={v.product.image} />
                       </td>
-                      <td className={td}>
+                      <td className={`${td} min-w-52`}>
                         <Link href={`/admin/products/${v.product.id}`} className="font-medium text-ink hover:text-padma hover:underline">
                           {v.product.title}
                         </Link>
                       </td>
                       <td className={`${td} text-ink-soft`}>{v.label ?? 'Default'}</td>
-                      <td className={`${td} font-mono text-xs text-ink-soft`}>{v.sku}</td>
-                      <td className={`${tdNum} whitespace-nowrap`}>{tk(v.price)}</td>
+                      <td className={`${td} font-mono text-xs whitespace-nowrap text-ink-soft`}>{v.sku}</td>
+                      <td className={`${tdNum} whitespace-nowrap`}>
+                        {tk(v.price)}
+                        {v.salePrice != null && <span className="block text-xs text-ink-faint line-through">{tk(v.regularPrice)}</span>}
+                      </td>
                       <td className={`${tdNum} font-semibold`}>{v.stock}</td>
                       <td className={`${tdNum} text-ink-soft`}>{v.lowStockThreshold}</td>
-                      <td className={td}>{v.stock === 0 ? <Badge tone="red">Out of stock</Badge> : v.low ? <Badge tone="amber">Low</Badge> : null}</td>
+                      <td className={`${td} whitespace-nowrap`}>
+                        {!v.isActive ? (
+                          <Badge tone="neutral">Hidden from store</Badge>
+                        ) : v.stock === 0 ? (
+                          <Badge tone="red">Out of stock</Badge>
+                        ) : v.low ? (
+                          <Badge tone="amber">Low</Badge>
+                        ) : null}
+                      </td>
                       <td className={`${td} text-right`}>
                         <InventoryActions variant={{ id: v.id, sku: v.sku, stock: v.stock, name: v.label ? `${v.product.title}, ${v.label}` : v.product.title }} />
                       </td>

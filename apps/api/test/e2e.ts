@@ -302,6 +302,17 @@ async function main() {
   check('customer sees courier tracking updates', doneFan.data.shipments?.[0]?.events?.length >= 3);
   check('staff notes stay out of the customer view', !doneFan.data.events.some((e: any) => e.title === 'Staff note' || 'actorName' in e));
   check('courier updates shown to customers never name staff', !JSON.stringify(doneFan.data.shipments).includes('Rafi'));
+  // A consignment the courier cancels can be booked again
+  await ayesha.post('/cart/items', { variantId: fan.id, quantity: 1 });
+  const fan2 = await ayesha.post('/checkout/place', { addressId: homeAddr.id, paymentMethod: 'COD' });
+  const fan2Id = (await prisma.order.findUniqueOrThrow({ where: { orderNo: fan2.data.orderNo } })).id;
+  if (fan2.data.status === 'PLACED') await rafi.post(`/admin/orders/${fan2Id}/transition`, { to: 'CONFIRMED' });
+  await rafi.post(`/admin/orders/${fan2Id}/transition`, { to: 'PACKED' });
+  const first = await rafi.post(`/admin/orders/${fan2Id}/shipments`, { courier: 'test' });
+  await new Client().post('/couriers/test/webhook', { consignment_id: first.data.consignmentId, status: 'cancelled', event_id: 'e2e-c1' }, { 'x-test-courier-token': 'test' });
+  const second = await rafi.post(`/admin/orders/${fan2Id}/shipments`, { courier: 'test' });
+  const rebooked = await rafi.get(`/admin/orders/${fan2Id}`);
+  check('a cancelled consignment can be booked again', second.status === 201 && rebooked.data.trackingNo === second.data.trackingCode && rebooked.data.status === 'SHIPPED', second.data);
   const lateHook = await hook('returned', 'e2e-4');
   check('a final state is never overwritten', lateHook.status === 200 && (await rafi.get(`/admin/orders/${fanId}`)).data.status === 'DELIVERED');
 
@@ -351,6 +362,11 @@ async function main() {
   await nusrat.post('/admin/inventory/bulk', { variantIds: [plain.id], action: 'sale_set', value: plain.salePrice! - 60 });
   await new Promise((r) => setTimeout(r, 500));
   check('an alert fires once', (await prisma.smsLog.count({ where: { phone: '01711111111', kind: 'alert' } })) === smsBefore + 2);
+  await nusrat.post('/admin/inventory/bulk', { variantIds: [plain.id], action: 'deactivate' });
+  const visible = (await nusrat.get(`/admin/inventory?q=${plain.sku}`)).data.items.length;
+  const withHidden = (await nusrat.get(`/admin/inventory?q=${plain.sku}&hidden=true`)).data.items;
+  check('hidden SKUs can still be found and shown again', visible === 0 && withHidden[0]?.isActive === false);
+  await nusrat.post('/admin/inventory/bulk', { variantIds: [plain.id], action: 'activate' });
   const badBulk = await nusrat.post('/admin/inventory/bulk', { variantIds: [plain.id], action: 'sale_set', value: plain.price + 10 });
   check('bulk edits refuse a sale price above the price', badBulk.status === 400);
   await nusrat.post('/admin/inventory/bulk', { variantIds: [plain.id], action: 'sale_set', value: plain.salePrice! });

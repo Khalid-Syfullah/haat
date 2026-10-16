@@ -1,11 +1,13 @@
 'use client';
 
-import { Copy, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Copy, RefreshCw, Truck, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import { useToast } from '@/components/providers';
 import { Badge, Button, clsx } from '@/components/ui';
 import { post } from '@/lib/api';
 import { dateTime, relative, tk } from '@/lib/format';
 import { Panel, type Tone } from './bits';
+import { type BookingOrder, CourierBooking } from './courier-booking';
 import type { AdminShipment, CourierCode, CourierOption, ShipmentState } from './types';
 import { useAction } from './use-action';
 
@@ -27,7 +29,7 @@ const SOURCE: Record<string, string> = { booking: 'Booking', webhook: 'Courier u
 const PROBLEM: Partial<Record<ShipmentState, string>> = {
   PARTIAL: 'The courier delivered only part of this order. Check which items came back, record them as a return, then mark the order as delivered.',
   CANCELLED:
-    'The courier cancelled this consignment, so nobody is bringing the parcel. Ask the courier why, then send it another way and add a staff note with the new tracking number, or mark the delivery as failed.',
+    'The courier cancelled this consignment, so nobody is bringing the parcel. Ask the courier why, then book a courier again below, send it another way and add a staff note with the new tracking number, or mark the delivery as failed.',
 };
 
 /** "order.in-transit" → "In transit" */
@@ -36,17 +38,39 @@ function humanize(status: string) {
   return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : status;
 }
 
-export function ShipmentPanel({ shipments, couriers }: { shipments: AdminShipment[]; couriers: CourierOption[] | null }) {
+/** `orderStatus` decides whether problem advice still applies (it stops once the order is closed). */
+export function ShipmentPanel({
+  shipments,
+  couriers,
+  orderStatus,
+  booking,
+}: {
+  shipments: AdminShipment[];
+  couriers: CourierOption[] | null;
+  orderStatus: string;
+  booking: BookingOrder;
+}) {
+  const [rebooking, setRebooking] = useState(false);
+  // Every consignment cancelled while the order is still out: it can be booked again.
+  const canRebook = orderStatus === 'SHIPPED' && shipments.length > 0 && shipments.every((s) => s.state === 'CANCELLED');
   return (
     <Panel title="Courier" bodyClassName="divide-y divide-line">
+      {canRebook && (
+        <div className="p-4">
+          <Button onClick={() => setRebooking(true)}>
+            <Truck className="size-4" aria-hidden /> Book a courier again
+          </Button>
+        </div>
+      )}
       {shipments.map((s, i) => (
-        <ShipmentCard key={s.id} shipment={s} couriers={couriers} earlier={i > 0} />
+        <ShipmentCard key={s.id} shipment={s} couriers={couriers} earlier={i > 0} orderOpen={orderStatus === 'SHIPPED'} />
       ))}
+      {rebooking && <CourierBooking order={booking} couriers={couriers} onClose={() => setRebooking(false)} />}
     </Panel>
   );
 }
 
-function ShipmentCard({ shipment: s, couriers, earlier }: { shipment: AdminShipment; couriers: CourierOption[] | null; earlier: boolean }) {
+function ShipmentCard({ shipment: s, couriers, earlier, orderOpen }: { shipment: AdminShipment; couriers: CourierOption[] | null; earlier: boolean; orderOpen: boolean }) {
   const { run, busy } = useAction();
   const toast = useToast();
   const info = couriers?.find((c) => c.code === s.courier);
@@ -56,7 +80,7 @@ function ShipmentCard({ shipment: s, couriers, earlier }: { shipment: AdminShipm
   const state = SHIPMENT_STATE[s.state] ?? { label: s.state, tone: 'neutral' as Tone };
   const testLabels = new Map((info?.testStatuses ?? []).map((t) => [t.status, t.label]));
   const statusLabel = (status: string) => testLabels.get(status) ?? humanize(status);
-  const problem = PROBLEM[s.state];
+  const problem = orderOpen && !earlier ? PROBLEM[s.state] : undefined;
 
   const copy = async () => {
     try {

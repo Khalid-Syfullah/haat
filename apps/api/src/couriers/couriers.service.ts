@@ -86,7 +86,9 @@ export class CouriersService {
       include: { items: { include: { variant: { select: { product: { select: { weightGrams: true } } } } } }, shipments: true },
     });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status !== 'PACKED') throw new BadRequestException('Pack the order before booking a courier');
+    // A shipped order whose consignment the courier cancelled can be booked again.
+    const rebook = order.status === 'SHIPPED' && order.shipments.length > 0 && order.shipments.every((s) => s.state === 'CANCELLED');
+    if (order.status !== 'PACKED' && !rebook) throw new BadRequestException('Pack the order before booking a courier');
     const active = order.shipments.find((s) => !['CANCELLED', 'RETURNED'].includes(s.state));
     if (active) throw new BadRequestException(`This order already has a ${this.adapter(active.courier).name} consignment (${active.trackingCode})`);
 
@@ -134,14 +136,31 @@ export class CouriersService {
         events: { create: { status: booked.courierStatus, message: `Booked by ${user.name}`, source: 'booking' } },
       },
     });
-    await this.workflow.transition(order.id, 'SHIPPED', {
-      actor: 'admin',
-      actorId: user.id,
-      actorName: user.name,
-      courier: a.name,
-      trackingNo: booked.trackingCode,
-      note: `${a.name} consignment ${booked.trackingCode}${input.codAmount ? ` · collect ৳${input.codAmount}` : ' · prepaid'}`,
-    });
+    const note = `${a.name} consignment ${booked.trackingCode}${input.codAmount ? ` · collect ৳${input.codAmount}` : ' · prepaid'}`;
+    if (rebook) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.update({ where: { id: order.id }, data: { courier: a.name, trackingNo: booked.trackingCode } });
+        await tx.orderEvent.create({ data: { orderId: order.id, title: 'Booked with a new courier', note, actor: 'admin', actorId: user.id, actorName: user.name } });
+        await tx.notification.create({
+          data: {
+            userId: order.userId,
+            type: 'order',
+            title: 'New tracking number',
+            body: `Order ${order.orderNo} is now with ${a.name}. Tracking: ${booked.trackingCode}.`,
+            link: `/account/orders/${order.orderNo}`,
+          },
+        });
+      });
+    } else {
+      await this.workflow.transition(order.id, 'SHIPPED', {
+        actor: 'admin',
+        actorId: user.id,
+        actorName: user.name,
+        courier: a.name,
+        trackingNo: booked.trackingCode,
+        note,
+      });
+    }
     return shipment;
   }
 
@@ -212,7 +231,7 @@ export class CouriersService {
               note:
                 shipment.state === 'PARTIAL'
                   ? `${name}${detail}. Check what came back, record a return for it, then mark the order delivered.`
-                  : `${name}${detail}. Book again or ship it another way.`,
+                  : `${name}${detail}. Book a courier again from the order page, or ship it another way.`,
               actor: 'system',
               internal: true,
             },

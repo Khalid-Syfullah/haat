@@ -28,7 +28,7 @@ interface Dashboard {
     courierIssues: number;
   };
   lowStock: { id: string; sku: string; stock: number; lowStockThreshold: number; title: string; productId: string; label: string | null }[];
-  recentOrders: { id: string; orderNo: string; status: string; total: number; customer: string; paymentMethod: string; createdAt: string }[];
+  recentOrders: { id: string; orderNo: string; status: string; total: number | null; customer: string; paymentMethod: string; createdAt: string }[];
 }
 
 /** `perm` is what the linked page needs; rows stay visible to everyone but only link for those who can open them. */

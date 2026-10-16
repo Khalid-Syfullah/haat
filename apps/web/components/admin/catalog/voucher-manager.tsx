@@ -49,7 +49,7 @@ export function VoucherManager({ vouchers }: { vouchers: VoucherRow[] }) {
       {vouchers.length === 0 ? (
         <EmptyState icon={<BadgePercent className="size-8" />} title="No vouchers yet" body="Create a code to share on Facebook, or a collectible voucher shoppers can save." />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[1080px] text-sm">
             <thead>
               <tr>
