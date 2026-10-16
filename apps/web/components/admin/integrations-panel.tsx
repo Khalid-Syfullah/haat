@@ -31,6 +31,7 @@ const COUNT_WORD: Record<string, string> = {
   fixed: 'fixed',
   checked: 'checked',
   changed: 'changed',
+  repaired: 'orders brought up to date',
 };
 
 /** { checked: 3, changed: 1 } → "3 checked, 1 changed". */

@@ -37,7 +37,10 @@ function pct(part: number, whole: number) {
 
 function csv(headers: string[], rows: (string | number | null | undefined)[][]) {
   const cell = (v: string | number | null | undefined) => {
-    const s = v == null ? '' : String(v);
+    let s = v == null ? '' : String(v);
+    // Text such as a customer's name could start with =, +, - or @ and run as a formula in Excel.
+    // A leading apostrophe makes the spreadsheet show it as plain text. Numbers stay as they are.
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // Byte-order mark so Excel opens Bangla text as UTF-8

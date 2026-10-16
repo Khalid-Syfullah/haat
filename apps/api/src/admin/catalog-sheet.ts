@@ -266,7 +266,10 @@ export async function planImport(db: Db, rows: Row[]) {
   // Products named by a handle, plus the products of SKUs listed without one
   const slugs = [...new Set([...handles, ...variants.map((v) => v.product.slug)])];
   const [productsByHandle, categories, brands] = await Promise.all([
-    db.product.findMany({ where: { slug: { in: slugs } }, include: { images: { orderBy: { sortOrder: 'asc' } }, brand: true } }),
+    db.product.findMany({
+      where: { slug: { in: slugs } },
+      include: { images: { orderBy: { sortOrder: 'asc' } }, brand: true, variants: { select: { sku: true } } },
+    }),
     db.category.findMany({ select: { id: true, slug: true, name: true } }),
     db.brand.findMany({ select: { id: true, name: true } }),
   ]);
@@ -333,6 +336,18 @@ export async function planImport(db: Db, rows: Row[]) {
         continue;
       }
     }
+    // An existing product without options gets them: every one of its SKUs needs values, or the
+    // ones left out could never be picked in the store.
+    const addsOptions = !!existingProduct && !existingProduct.optionNames.length && optionNames.length > 0;
+    if (addsOptions && existingProduct) {
+      const inFile = new Set(group.map((r) => r.sku));
+      const missing = existingProduct.variants.map((v) => v.sku).filter((sku) => !inFile.has(sku));
+      if (missing.length) {
+        err(group[0], `To add ${optionNames.join(', ')} to ${handle}, list all its SKUs with their option values (missing: ${missing.join(', ')})`);
+        continue;
+      }
+      productDetails.push(`options → ${optionNames.join(', ')}`);
+    }
     const names = optionNames.length ? optionNames : (existingProduct?.optionNames ?? []);
 
     const variantPlans: VariantPlan[] = [];
@@ -360,6 +375,7 @@ export async function planImport(db: Db, rows: Row[]) {
         if ((stock ?? 0) > 0) summary.stockChanges++;
         continue;
       }
+      if (addsOptions && Object.keys(options).length !== names.length) err(row, `Fill in ${names.join(', ')} for ${row.sku}`);
       const nextPrice = price ?? v.price;
       const nextSale = salePrice === undefined ? v.salePrice : salePrice;
       if (nextSale != null && nextSale >= nextPrice) err(row, `Sale price ৳${nextSale} must be below price ৳${nextPrice}`);
@@ -387,7 +403,7 @@ export async function planImport(db: Db, rows: Row[]) {
     }
     if (!existingProduct) summary.newProducts++;
     else if (productDetails.length) summary.updatedProducts++;
-    plans.push({ handle, productId: existingProduct?.id, fields, categoryId, optionNames: names, variants: variantPlans });
+    plans.push({ handle, productId: existingProduct?.id, fields, categoryId, optionNames: names, addsOptions, variants: variantPlans });
   }
   summary.newBrands = [...newBrands];
   errors.sort((a, b) => a.row - b.row);
@@ -410,6 +426,8 @@ interface GroupPlan {
   fields: Partial<Record<Key, string>>;
   categoryId?: string;
   optionNames: string[];
+  /** An existing product that had no options gets these option names. */
+  addsOptions: boolean;
   variants: VariantPlan[];
 }
 
@@ -439,6 +457,7 @@ export async function applyImport(prisma: PrismaService, groups: GroupPlan[], us
         if (f.highlights) productData.highlights = splitList(f.highlights);
         if (f.keywords !== undefined) productData.keywords = f.keywords;
         if (f.description !== undefined) productData.description = f.description;
+        if (g.addsOptions) productData.optionNames = g.optionNames;
         let productId = g.productId;
         if (!productId) {
           let slug = slugify(g.handle);

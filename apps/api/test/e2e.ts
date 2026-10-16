@@ -313,6 +313,20 @@ async function main() {
   const second = await rafi.post(`/admin/orders/${fan2Id}/shipments`, { courier: 'test' });
   const rebooked = await rafi.get(`/admin/orders/${fan2Id}`);
   check('a cancelled consignment can be booked again', second.status === 201 && rebooked.data.trackingNo === second.data.trackingCode && rebooked.data.status === 'SHIPPED', second.data);
+  // Two staff booking the same order at once get one consignment between them
+  await ayesha.post('/cart/items', { variantId: fan.id, quantity: 1 });
+  const fan3 = await ayesha.post('/checkout/place', { addressId: homeAddr.id, paymentMethod: 'COD' });
+  const fan3Id = (await prisma.order.findUniqueOrThrow({ where: { orderNo: fan3.data.orderNo } })).id;
+  if (fan3.data.status === 'PLACED') await rafi.post(`/admin/orders/${fan3Id}/transition`, { to: 'CONFIRMED' });
+  await rafi.post(`/admin/orders/${fan3Id}/transition`, { to: 'PACKED' });
+  const race = await Promise.all([rafi.post(`/admin/orders/${fan3Id}/shipments`, { courier: 'test' }), admin.post(`/admin/orders/${fan3Id}/shipments`, { courier: 'test' })]);
+  const raceShipments = await prisma.shipment.count({ where: { orderId: fan3Id } });
+  check('booking the same order twice at once makes one consignment', raceShipments === 1 && race.filter((r) => r.status === 201).length === 1 && race.some((r) => r.status === 400 || r.status === 409), race.map((r) => r.status));
+  // The order update after a delivery report failed (say the server restarted): the courier job finishes it
+  await prisma.shipment.updateMany({ where: { orderId: fan3Id }, data: { state: 'DELIVERED', courierStatus: 'delivered' } });
+  const repair = await admin.post('/admin/jobs/courier-sync/run');
+  const repairedOrder = await prisma.order.findUniqueOrThrow({ where: { id: fan3Id } });
+  check('an order stuck after a delivery report is brought up to date', repair.data.repaired >= 1 && repairedOrder.status === 'DELIVERED' && repairedOrder.paymentStatus === 'PAID', repair.data);
   const lateHook = await hook('returned', 'e2e-4');
   check('a final state is never overwritten', lateHook.status === 200 && (await rafi.get(`/admin/orders/${fanId}`)).data.status === 'DELIVERED');
 
@@ -331,8 +345,12 @@ async function main() {
   check('return rate counts the returned item', kettleRow?.returnedUnits >= 1 && kettleRow.returnRate > 0, kettleRow);
   const csv = await admin.download('/admin/reports/export/products');
   check('CSV export opens in Excel (UTF-8 with BOM)', csv.status === 200 && csv.type.startsWith('text/csv') && csv.body.toString('utf8').startsWith('﻿Product,Orders'));
+  const realName = (await prisma.order.findUniqueOrThrow({ where: { id: fanId } })).shipName;
+  await prisma.order.update({ where: { id: fanId }, data: { shipName: '=1+2' } });
   const ordersCsv = await admin.download('/admin/reports/export/orders');
+  await prisma.order.update({ where: { id: fanId }, data: { shipName: realName } });
   check('orders export lists this run’s orders', ordersCsv.body.toString('utf8').includes(fanOrder.data.orderNo));
+  check('names that look like formulas export as plain text', ordersCsv.body.toString('utf8').includes(",'=1+2,") && !ordersCsv.body.toString('utf8').includes(',=1+2,'));
   await new Promise((r) => setTimeout(r, 300));
   check('downloads of customer data are audited', (await admin.get('/admin/audit-log?q=orders%20report')).data.items.some((a: any) => a.action === 'report.export'));
 
@@ -464,6 +482,32 @@ async function main() {
   check('stock changes from Excel are in the movement log', moves.length === 1 && moves[0].delta === 77 - unchanged.stock);
   check('imports are audited', (await admin.get('/admin/audit-log?q=catalog.xlsx')).data.items.some((a: any) => a.action === 'catalog.import'));
   void handle;
+  // Giving the lamp (no options yet) a Colour option
+  const lampSheet = async (rows: Record<string, string | number>[]) => {
+    const book = new ExcelJS.Workbook();
+    const ws = book.addWorksheet('Products');
+    ws.addRow(headers);
+    for (const r of rows) {
+      const line = ws.addRow([]);
+      for (const [h, v] of Object.entries(r)) line.getCell(col(h)).value = v;
+    }
+    return Buffer.from(await book.xlsx.writeBuffer());
+  };
+  const black = { 'Product handle': 'e2e-import-lamp', SKU: 'E2E-LAMP-2', Price: 990, Stock: 2, 'Option 1 name': 'Colour', 'Option 1 value': 'Black' };
+  const partial = await nusrat.upload('/admin/catalog/import', 'lamp.xlsx', await lampSheet([black]));
+  check('adding options needs every SKU of the product', partial.data.errors.some((e: any) => e.message.includes('E2E-LAMP-1')), partial.data.errors);
+  const white = { 'Product handle': 'e2e-import-lamp', SKU: 'E2E-LAMP-1', 'Option 1 name': 'Colour', 'Option 1 value': 'White' };
+  const withOptions = await nusrat.upload('/admin/catalog/import?apply=true', 'lamp.xlsx', await lampSheet([white, black]));
+  const lamp2 = await prisma.product.findUniqueOrThrow({ where: { slug: 'e2e-import-lamp' }, include: { variants: { orderBy: { sku: 'asc' } } } });
+  check(
+    'import adds options to an existing product',
+    withOptions.status === 200 && lamp2.optionNames.join() === 'Colour' && lamp2.variants.map((v) => (v.options as any)?.Colour).join() === 'White,Black',
+    { status: withOptions.status, optionNames: lamp2.optionNames, errors: withOptions.data.errors },
+  );
+  const lampSku = lamp2.variants[0];
+  await nusrat.post('/admin/inventory/bulk', { variantIds: [lampSku.id], action: 'price_set', value: 40 });
+  const noDiscount = await nusrat.post('/admin/inventory/bulk', { variantIds: [lampSku.id], action: 'sale_pct_off', value: 1 });
+  check('a percent off that rounds to the full price is refused', noDiscount.status === 400 && (await prisma.productVariant.findUniqueOrThrow({ where: { id: lampSku.id } })).salePrice === null);
 
   console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');
   await prisma.$disconnect();
