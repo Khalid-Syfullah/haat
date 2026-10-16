@@ -48,11 +48,12 @@ fail() {
   fi
   exit 1
 }
+trap 'fail "command on line $LINENO"' ERR
 
 # 2. Install and build. NODE_ENV stays unset here so npm installs the build tools.
 cd "$REL"
 ln -sfn "$APP/shared/api.env" "$REL/apps/api/.env"
-export NEXT_TELEMETRY_DISABLED=1 CI=1
+export NEXT_TELEMETRY_DISABLED=1 CI=1 PRISMA_HIDE_UPDATE_MESSAGE=1
 log "Installing dependencies"
 npm ci --no-audit --no-fund --loglevel=error || fail "npm ci"
 log "Building API and web"
@@ -66,7 +67,7 @@ log "Applying database migrations"
 
 # 4. Product images that ship with the code; customer uploads live in shared/uploads.
 mkdir -p "$APP/shared/uploads"
-if [ -d apps/api/uploads/seed ]; then rsync -a apps/api/uploads/seed/ "$APP/shared/uploads/seed/"; fi
+if [ -d apps/api/uploads/seed ]; then mkdir -p "$APP/shared/uploads/seed" && cp -a apps/api/uploads/seed/. "$APP/shared/uploads/seed/"; fi
 
 # 5. Switch traffic
 cp deploy/ecosystem.config.cjs "$APP/ecosystem.config.cjs"
