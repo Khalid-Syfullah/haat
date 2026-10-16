@@ -14,7 +14,20 @@ datasource db {
 
 enum Role {
   CUSTOMER
+  // Staff work in the admin panel with the permissions listed on their account
+  STAFF
+  // Owners: every permission, plus staff management and the audit log
   ADMIN
+}
+
+/// Areas of the admin panel a STAFF account may use.
+enum Permission {
+  CATALOG
+  ORDERS
+  MARKETING
+  SUPPORT
+  REPORTS
+  SETTINGS
 }
 
 enum ProductStatus {
@@ -103,21 +116,60 @@ enum ReviewStatus {
   HIDDEN
 }
 
+enum ShipmentState {
+  BOOKED
+  IN_TRANSIT
+  DELIVERED
+  PARTIAL
+  RETURNED
+  CANCELLED
+}
+
+enum AlertType {
+  PRICE_DROP
+  BACK_IN_STOCK
+}
+
+/// OPEN waits on staff, PENDING waits on the customer.
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+}
+
+enum TicketCategory {
+  ORDER_ISSUE
+  DELIVERY
+  PAYMENT
+  RETURN_REFUND
+  PRODUCT
+  ACCOUNT
+  OTHER
+}
+
+enum TicketPriority {
+  NORMAL
+  HIGH
+}
+
 // ───────────────────────── Identity ─────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
-  phone         String    @unique
-  email         String?   @unique
+  phone         String       @unique
+  email         String?      @unique
   passwordHash  String?
-  role          Role      @default(CUSTOMER)
-  coins         Int       @default(0)
-  codBlocked    Boolean   @default(false)
-  isActive      Boolean   @default(true)
+  role          Role         @default(CUSTOMER)
+  permissions   Permission[] @default([])
+  coins         Int          @default(0)
+  codBlocked    Boolean      @default(false)
+  isActive      Boolean      @default(true)
+  // SMS reminders and alerts (order updates and login codes are always sent)
+  marketingSms  Boolean      @default(true)
   lastCheckInAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   addresses     Address[]
   cart          Cart?
@@ -130,6 +182,11 @@ model User {
   notifications Notification[]
   vouchers      UserVoucher[]
   redemptions   VoucherRedemption[]
+  alerts        ProductAlert[]
+  tickets       SupportTicket[]     @relation("TicketCustomer")
+  assigned      SupportTicket[]     @relation("TicketAssignee")
+  ticketPosts   TicketMessage[]
+  auditLogs     AuditLog[]
 }
 
 model OtpCode {
@@ -222,6 +279,7 @@ model Product {
   reviews   Review[]
   questions Question[]
   wishlist  WishlistItem[]
+  alerts    ProductAlert[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -259,6 +317,7 @@ model ProductVariant {
   orderItems OrderItem[]
   flashItems FlashSaleItem[]
   movements  InventoryMovement[]
+  alerts     ProductAlert[]
 
   @@index([productId])
 }
@@ -283,10 +342,12 @@ model InventoryMovement {
 // ───────────────────────── Shopping ─────────────────────────
 
 model Cart {
-  id        String     @id @default(cuid())
-  userId    String     @unique
-  updatedAt DateTime   @updatedAt
-  items     CartItem[]
+  id         String     @id @default(cuid())
+  userId     String     @unique
+  updatedAt  DateTime   @updatedAt
+  // Last abandoned-cart reminder; a new one waits for fresh cart activity
+  remindedAt DateTime?
+  items      CartItem[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -298,6 +359,7 @@ model CartItem {
   quantity  Int
   selected  Boolean  @default(true)
   addedAt   DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -458,6 +520,8 @@ model Order {
   payments   Payment[]
   returns    ReturnRequest[]
   redemption VoucherRedemption?
+  shipments  Shipment[]
+  tickets    SupportTicket[]
 
   @@index([userId, createdAt])
   @@index([status])
@@ -497,6 +561,11 @@ model OrderEvent {
   note      String?
   // "system", "customer" or "admin"
   actor     String       @default("system")
+  // The staff member, when actor is "admin"
+  actorId   String?
+  actorName String?
+  // Staff-only entries (notes, courier exceptions) never reach the customer
+  internal  Boolean      @default(false)
   createdAt DateTime     @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -633,4 +702,161 @@ model SearchSynonym {
   id       String   @id @default(cuid())
   term     String   @unique
   synonyms String[]
+}
+
+// ───────────────────────── Couriers ─────────────────────────
+
+/// One consignment booked with a courier for an order.
+model Shipment {
+  id            String        @id @default(cuid())
+  orderId       String
+  // "steadfast", "pathao", "redx" or "test"
+  courier       String
+  consignmentId String
+  trackingCode  String
+  state         ShipmentState @default(BOOKED)
+  // The courier's own status text, as last reported
+  courierStatus String?
+  codAmount     Int
+  deliveryFee   Int?
+  note          String?
+  raw           Json?
+  lastEventAt   DateTime?
+  lastSyncAt    DateTime?
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events ShipmentEvent[]
+
+  @@unique([courier, consignmentId])
+  @@index([orderId])
+  @@index([state, lastSyncAt])
+}
+
+model ShipmentEvent {
+  id         String   @id @default(cuid())
+  shipmentId String
+  status     String
+  message    String?
+  // "booking", "webhook", "sync" or "staff"
+  source     String
+  // Stops a retried webhook from being applied twice
+  dedupeKey  String?  @unique
+  raw        Json?
+  createdAt  DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+}
+
+// ───────────────────────── Alerts and messages ─────────────────────────
+
+/// "Tell me when it's back" and "tell me if the price drops", per variant.
+model ProductAlert {
+  id               String    @id @default(cuid())
+  userId           String
+  productId        String
+  variantId        String
+  type             AlertType
+  // Price the customer saw when subscribing (price-drop alerts)
+  priceAtSubscribe Int?
+  notifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, variantId, type])
+  @@index([type, notifiedAt])
+}
+
+/// Every SMS the store sends or would send (SMS_PROVIDER=console only logs).
+model SmsLog {
+  id          String   @id @default(cuid())
+  phone       String
+  body        String
+  // "otp", "alert", "cart", "ticket" ...
+  kind        String
+  provider    String
+  // "sent", "failed" or "logged"
+  status      String
+  error       String?
+  providerRef String?
+  userId      String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([phone, createdAt])
+}
+
+// ───────────────────────── Support ─────────────────────────
+
+model SupportTicket {
+  id            String         @id @default(cuid())
+  ticketNo      String         @unique
+  userId        String
+  orderId       String?
+  category      TicketCategory
+  subject       String
+  status        TicketStatus   @default(OPEN)
+  priority      TicketPriority @default(NORMAL)
+  assigneeId    String?
+  lastMessageAt DateTime       @default(now())
+  resolvedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user     User            @relation("TicketCustomer", fields: [userId], references: [id], onDelete: Cascade)
+  assignee User?           @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  order    Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  messages TicketMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([userId, createdAt])
+  @@index([assigneeId, status])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  fromStaff Boolean
+  body      String   @db.Text
+  images    String[] @default([])
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+// ───────────────────────── Audit ─────────────────────────
+
+/// One row per change made from the admin panel.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorName String
+  actorRole Role?
+  // e.g. "order.transition", "product.update"
+  action    String
+  entity    String?
+  entityId  String?
+  summary   String
+  method    String
+  path      String
+  data      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
 }

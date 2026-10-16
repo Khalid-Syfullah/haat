@@ -114,6 +114,7 @@ const QUESTIONS: [string, string, string][] = [
 async function wipe() {
   // Delete children before parents.
   const tables = [
+    'AuditLog', 'SmsLog', 'TicketMessage', 'SupportTicket', 'ProductAlert', 'ShipmentEvent', 'Shipment',
     'Notification', 'CoinTransaction', 'Question', 'Review', 'ReturnRequest', 'Payment', 'OrderEvent', 'OrderItem',
     'VoucherRedemption', 'Order', 'UserVoucher', 'Voucher', 'FlashSaleItem', 'FlashSale', 'Banner', 'CartItem', 'Cart',
     'WishlistItem', 'InventoryMovement', 'ProductVariant', 'ProductImage', 'Product', 'Brand', 'Category', 'Address',
@@ -534,7 +535,7 @@ async function main() {
 
   async function demoOrder(opts: {
     items: { slug: string; vi?: number; qty: number }[];
-    status: 'DELIVERED' | 'SHIPPED' | 'CONFIRMED';
+    status: 'DELIVERED' | 'SHIPPED' | 'PACKED' | 'CONFIRMED';
     method: 'COD' | 'BKASH';
     placedDaysAgo: number;
   }) {
@@ -621,6 +622,9 @@ async function main() {
   });
   await demoOrder({ items: [{ slug: 'volt-20000mah-power-bank-22-5w', qty: 1 }], status: 'SHIPPED', method: 'BKASH', placedDaysAgo: 1 });
   await demoOrder({ items: [{ slug: 'ranna-electric-kettle-1-8l', qty: 1 }], status: 'CONFIRMED', method: 'COD', placedDaysAgo: 0.2 });
+  // Packed and waiting for a courier booking
+  await demoOrder({ items: [{ slug: 'alo-rechargeable-table-fan-12', qty: 1 }], status: 'PACKED', method: 'COD', placedDaysAgo: 0.6 });
+  const shippedOrder = (await prisma.order.findFirst({ where: { userId: demo.id, status: 'SHIPPED' } }))!;
 
   const coinTxns: [number, CoinReason, string, number][] = [
     [5, CoinReason.CHECK_IN, 'Daily check-in', 9],
@@ -651,8 +655,80 @@ async function main() {
     ],
   });
 
+  // ───── Staff ─────
+  const staffHash = await hash('staff1234', 10);
+  const rafi = await prisma.user.create({
+    data: { name: 'Rafi Ahmed', phone: '01700000001', email: 'rafi@haat.local', passwordHash: staffHash, role: 'STAFF', permissions: ['ORDERS', 'SUPPORT'], cart: { create: {} } },
+  });
+  await prisma.user.create({
+    data: { name: 'Nusrat Jahan', phone: '01700000002', email: 'nusrat@haat.local', passwordHash: staffHash, role: 'STAFF', permissions: ['CATALOG', 'MARKETING'], cart: { create: {} } },
+  });
+
+  // ───── Support tickets ─────
+  await prisma.supportTicket.create({
+    data: {
+      ticketNo: 'T2610150001',
+      userId: demo.id,
+      orderId: shippedOrder.id,
+      category: 'DELIVERY',
+      subject: 'When will my power bank arrive?',
+      status: 'PENDING',
+      priority: 'HIGH',
+      assigneeId: rafi.id,
+      createdAt: hours(-20),
+      lastMessageAt: hours(-18),
+      messages: {
+        create: [
+          { authorId: demo.id, fromStaff: false, body: 'I paid with bKash yesterday. The tracking page has not changed since the morning. Will it come today?', createdAt: hours(-20) },
+          {
+            authorId: rafi.id,
+            fromStaff: true,
+            body: 'Hi Ayesha, Steadfast has your parcel at their Dhanmondi hub and it is out for delivery today. The rider will call you before coming. Reply here if it does not arrive by 8 pm.',
+            createdAt: hours(-18),
+          },
+        ],
+      },
+    },
+  });
+  await prisma.supportTicket.create({
+    data: {
+      ticketNo: 'T2610010002',
+      userId: demo.id,
+      category: 'ACCOUNT',
+      subject: 'Change the email on my account',
+      status: 'RESOLVED',
+      assigneeId: rafi.id,
+      createdAt: days(15),
+      lastMessageAt: days(14),
+      resolvedAt: days(14),
+      messages: {
+        create: [
+          { authorId: demo.id, fromStaff: false, body: 'Please change my email to ayesha@example.com, I no longer use the old one.', createdAt: days(15) },
+          { authorId: rafi.id, fromStaff: true, body: 'Done. You can also change it yourself any time under Account → Profile.', createdAt: days(14) },
+        ],
+      },
+    },
+  });
+  const unhappy = reviewers[2] ?? reviewers[0];
+  await prisma.supportTicket.create({
+    data: {
+      ticketNo: 'T2610160003',
+      userId: unhappy.id,
+      category: 'RETURN_REFUND',
+      subject: 'Panjabi size is too small',
+      status: 'OPEN',
+      createdAt: hours(-3),
+      lastMessageAt: hours(-3),
+      messages: {
+        create: [{ authorId: unhappy.id, fromStaff: false, body: 'The L size fits like an M. Can I exchange it for XL instead of returning it?', createdAt: hours(-3) }],
+      },
+    },
+  });
+
   console.log('\nDone. Log in with:');
   console.log('  Admin     01700000000 / admin1234   (or admin@haat.local)');
+  console.log('  Staff     01700000001 / staff1234   (orders and support)');
+  console.log('            01700000002 / staff1234   (catalog and marketing)');
   console.log('  Customer  01711111111 / customer123');
   void admin;
 }

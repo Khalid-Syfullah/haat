@@ -5,7 +5,8 @@ import { compare, hash } from 'bcryptjs';
 import { IsEmail, IsOptional, IsString, Length, MaxLength, MinLength } from 'class-validator';
 import { createHash, randomInt } from 'crypto';
 import type { Response } from 'express';
-import { AuthUser, clearAuthCookie, CurrentUser, Public, setAuthCookie } from '../common/auth';
+import { AuthUser, clearAuthCookie, CurrentUser, effectivePermissions, Public, setAuthCookie } from '../common/auth';
+import { SmsService } from '../common/sms.service';
 import { normalizePhone } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -32,8 +33,17 @@ class OtpVerifyDto {
   @IsOptional() @IsString() @MaxLength(60) name?: string;
 }
 
-export function publicUser(user: Pick<User, 'id' | 'name' | 'phone' | 'email' | 'role' | 'coins'>) {
-  return { id: user.id, name: user.name, phone: user.phone, email: user.email, role: user.role, coins: user.coins };
+export function publicUser(user: Pick<User, 'id' | 'name' | 'phone' | 'email' | 'role' | 'coins' | 'permissions' | 'marketingSms'>) {
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    coins: user.coins,
+    permissions: effectivePermissions(user),
+    marketingSms: user.marketingSms,
+  };
 }
 
 function hashOtp(phone: string, code: string) {
@@ -45,6 +55,7 @@ export class AuthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly sms: SmsService,
   ) {}
 
   private async signIn(res: Response, user: User) {
@@ -83,7 +94,7 @@ export class AuthController {
     return this.signIn(res, user);
   }
 
-  /** Sends a 6-digit code. With SMS_PROVIDER=console the code is logged and returned for local testing. */
+  /** Sends a 6-digit code by SMS. With SMS_PROVIDER=console the code is logged, and returned outside production for local testing. */
   @Public()
   @HttpCode(200)
   @Post('otp/request')
@@ -97,9 +108,8 @@ export class AuthController {
     await this.prisma.otpCode.create({
       data: { phone, codeHash: hashOtp(phone, code), expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
     });
-    const consoleMode = (process.env.SMS_PROVIDER || 'console') === 'console';
-    if (consoleMode) console.log(`[sms] OTP for ${phone}: ${code}`);
-    // A real SMS adapter (e.g. an SSL Wireless or Twilio client) plugs in here.
+    const consoleMode = this.sms.provider === 'console';
+    await this.sms.send(phone, `Your Haat login code is ${code}. It expires in 5 minutes. Never share it.`, 'otp');
     const isNew = !(await this.prisma.user.findUnique({ where: { phone }, select: { id: true } }));
     return { sent: true, isNewUser: isNew, ...(consoleMode && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}) };
   }

@@ -230,6 +230,13 @@ export class CatalogService {
     const wishlisted = userId
       ? !!(await this.prisma.wishlistItem.findUnique({ where: { userId_productId: { userId, productId: product.id } } }))
       : false;
+    // "Notify me" alerts this customer is waiting on, per variant
+    const myAlerts = userId
+      ? await this.prisma.productAlert.findMany({
+          where: { userId, productId: product.id, notifiedAt: null },
+          select: { id: true, variantId: true, type: true },
+        })
+      : [];
 
     const now = new Date();
     const vouchers = await this.prisma.voucher.findMany({
@@ -258,6 +265,7 @@ export class CatalogService {
       images: product.images.map((i) => ({ url: i.url, alt: i.alt })),
       variants,
       wishlisted,
+      myAlerts,
       delivery: {
         zones,
         freeShippingThreshold: settings.delivery.freeShippingThreshold,

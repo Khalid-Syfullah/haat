@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
-import { MovementReason, Prisma, ProductStatus, Role } from '@prisma/client';
+import { MovementReason, Permission, Prisma, ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -16,8 +16,10 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { AlertsService } from '../alerts/alerts.service';
 import { CatalogService } from '../catalog/catalog.service';
-import { AuthUser, CurrentUser, Roles } from '../common/auth';
+import { Audit } from '../common/audit';
+import { AuthUser, CurrentUser, Perm } from '../common/auth';
 import { clamp, slugify, toBool, toInt, variantLabel } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -84,12 +86,13 @@ class AdjustDto {
   @IsString() @MinLength(2) @MaxLength(200) note: string;
 }
 
-@Roles(Role.ADMIN)
+@Perm(Permission.CATALOG)
 @Controller('admin')
 export class AdminCatalogController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalog: CatalogService,
+    private readonly alerts: AlertsService,
   ) {}
 
   // ───── Products ─────
@@ -161,6 +164,7 @@ export class AdminCatalogController {
     return product;
   }
 
+  @Audit({ action: 'product.create', entity: 'product', summary: ({ result }) => `Created product ${result?.title ?? ''}` })
   @Post('products')
   async createProduct(@CurrentUser() user: AuthUser, @Body() dto: ProductDto) {
     if (!dto.variants.length) throw new BadRequestException('Add at least one variant (SKU)');
@@ -186,6 +190,7 @@ export class AdminCatalogController {
     return this.product(product.id);
   }
 
+  @Audit({ action: 'product.update', entity: 'product', summary: ({ result }) => `Updated product ${result?.title ?? ''}` })
   @Put('products/:id')
   async updateProduct(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: ProductDto) {
     const existing = await this.prisma.product.findUnique({ where: { id }, include: { variants: true } });
@@ -227,9 +232,12 @@ export class AdminCatalogController {
         else await tx.productVariant.delete({ where: { id: old.id } });
       }
     });
+    // Restocks and price cuts reach the customers waiting on them straight away
+    void this.alerts.scan(existing.variants.map((v) => v.id)).catch(() => undefined);
     return this.product(id);
   }
 
+  @Audit({ action: 'product.archive', entity: 'product', summary: () => 'Archived a product' })
   @Delete('products/:id')
   async archiveProduct(@Param('id') id: string) {
     await this.prisma.product.update({ where: { id }, data: { status: 'ARCHIVED' } });
@@ -384,10 +392,15 @@ export class AdminCatalogController {
     return { items, total, page, pages: Math.max(1, Math.ceil(total / 50)) };
   }
 
+  @Audit({
+    action: 'inventory.adjust',
+    entity: 'variant',
+    summary: ({ body, result }) => `Stock ${body.delta > 0 ? '+' : ''}${body.delta} (now ${result?.stock}): ${body.note}`,
+  })
   @Post('inventory/:variantId/adjust')
   async adjust(@CurrentUser() user: AuthUser, @Param('variantId') variantId: string, @Body() dto: AdjustDto) {
     if (dto.delta === 0) throw new BadRequestException('Change the stock by at least 1');
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const where = dto.delta < 0 ? { id: variantId, stock: { gte: -dto.delta } } : { id: variantId };
       const res = await tx.productVariant.updateMany({ where, data: { stock: { increment: dto.delta } } });
       if (res.count !== 1) throw new BadRequestException('Stock cannot go below zero');
@@ -402,6 +415,8 @@ export class AdminCatalogController {
       });
       return tx.productVariant.findUniqueOrThrow({ where: { id: variantId }, select: { id: true, stock: true } });
     });
+    if (dto.delta > 0) void this.alerts.scan([variantId]).catch(() => undefined);
+    return result;
   }
 
   @Get('inventory/:variantId/movements')

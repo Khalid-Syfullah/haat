@@ -1,8 +1,9 @@
 import { Body, Controller, Get, NotFoundException, Param, Patch, Put, Query } from '@nestjs/common';
-import { Prisma, ReviewStatus, Role } from '@prisma/client';
+import { Permission, Prisma, ReviewStatus } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ReviewsService } from '../aftersale/reviews.service';
-import { Roles } from '../common/auth';
+import { Audit } from '../common/audit';
+import { AuthUser, CurrentUser, effectivePermissions, Perm } from '../common/auth';
 import { EngagementService } from '../common/engagement.service';
 import { SettingsService } from '../common/settings.service';
 import { clamp, dhakaDay, dhakaDayStart, toBool, toInt, variantLabel } from '../common/utils';
@@ -25,7 +26,8 @@ class CustomerUpdateDto {
 
 const COUNTED: Prisma.OrderWhereInput = { status: { notIn: ['CANCELLED', 'DELIVERY_FAILED', 'AWAITING_PAYMENT'] } };
 
-@Roles(Role.ADMIN)
+/** The dashboard is open to every staff member; each other section names its permission. */
+@Perm()
 @Controller('admin')
 export class AdminOverviewController {
   constructor(
@@ -36,10 +38,11 @@ export class AdminOverviewController {
   ) {}
 
   @Get('dashboard')
-  async dashboard() {
+  async dashboard(@CurrentUser() user: AuthUser) {
+    const seesMoney = effectivePermissions(user).includes(Permission.REPORTS);
     const today = dhakaDayStart();
     const since = new Date(today.getTime() - 29 * 86400000);
-    const [todayAgg, monthAgg, toCall, toPack, toShip, inTransit, returns, refunds, unanswered, recent, series, lowStock] = await Promise.all([
+    const [todayAgg, monthAgg, toCall, toPack, toShip, inTransit, returns, refunds, unanswered, recent, series, lowStock, openTickets, courierIssues] = await Promise.all([
       this.prisma.order.aggregate({ where: { ...COUNTED, createdAt: { gte: today } }, _sum: { total: true }, _count: { _all: true } }),
       this.prisma.order.aggregate({ where: { ...COUNTED, createdAt: { gte: since } }, _sum: { total: true }, _count: { _all: true } }),
       this.prisma.order.count({ where: { status: 'PLACED' } }),
@@ -61,6 +64,9 @@ export class AdminOverviewController {
         FROM "ProductVariant" v JOIN "Product" p ON p.id = v."productId"
         WHERE v."isActive" AND p.status = 'ACTIVE' AND v.stock <= v."lowStockThreshold"
         ORDER BY v.stock ASC LIMIT 10`,
+      this.prisma.supportTicket.count({ where: { status: 'OPEN' } }),
+      // Couriers reported a partial delivery or cancelled a consignment of an order still marked shipped
+      this.prisma.shipment.count({ where: { state: { in: ['PARTIAL', 'CANCELLED'] }, order: { status: 'SHIPPED' } } }),
     ]);
 
     // Fill missing days so the chart has 30 points.
@@ -71,10 +77,17 @@ export class AdminOverviewController {
       return { day, orders: row?.orders ?? 0, revenue: row?.revenue ?? 0 };
     });
 
+    // Sales figures are for staff with the reports permission; counts are for everyone.
+    const money = (n: number | null) => (seesMoney ? (n ?? 0) : null);
     return {
-      today: { orders: todayAgg._count._all, revenue: todayAgg._sum.total ?? 0 },
-      last30: { orders: monthAgg._count._all, revenue: monthAgg._sum.total ?? 0, days },
-      queues: { toCall, toPack, toShip, inTransit, returns, refunds, unanswered },
+      seesMoney,
+      today: { orders: todayAgg._count._all, revenue: money(todayAgg._sum.total) },
+      last30: {
+        orders: monthAgg._count._all,
+        revenue: money(monthAgg._sum.total),
+        days: days.map((d) => ({ ...d, revenue: money(d.revenue) })),
+      },
+      queues: { toCall, toPack, toShip, inTransit, returns, refunds, unanswered, openTickets, courierIssues },
       lowStock: lowStock.map((v) => ({ ...v, label: variantLabel(v.options) })),
       recentOrders: recent.map((o) => ({
         id: o.id,
@@ -90,6 +103,7 @@ export class AdminOverviewController {
 
   // ───── Customers ─────
 
+  @Perm(Permission.ORDERS)
   @Get('customers')
   async customers(@Query() query: Record<string, string>) {
     const page = clamp(toInt(query.page, 1), 1, 1000);
@@ -140,6 +154,18 @@ export class AdminOverviewController {
     };
   }
 
+  @Perm(Permission.ORDERS)
+  @Audit({
+    action: 'customer.update',
+    entity: 'customer',
+    summary: ({ body }) =>
+      [
+        body.codBlocked !== undefined && (body.codBlocked ? 'Blocked cash on delivery' : 'Allowed cash on delivery'),
+        body.isActive !== undefined && (body.isActive ? 'Enabled account' : 'Disabled account'),
+      ]
+        .filter(Boolean)
+        .join(', ') + ' for a customer',
+  })
   @Patch('customers/:id')
   async updateCustomer(@Param('id') id: string, @Body() dto: CustomerUpdateDto) {
     const user = await this.prisma.user.findFirst({ where: { id, role: 'CUSTOMER' } });
@@ -153,6 +179,7 @@ export class AdminOverviewController {
 
   // ───── Reviews ─────
 
+  @Perm(Permission.SUPPORT)
   @Get('reviews')
   async allReviews(@Query() query: Record<string, string>) {
     const page = clamp(toInt(query.page, 1), 1, 1000);
@@ -174,6 +201,12 @@ export class AdminOverviewController {
     return { items, total, page, pages: Math.max(1, Math.ceil(total / 20)) };
   }
 
+  @Perm(Permission.SUPPORT)
+  @Audit({
+    action: 'review.update',
+    entity: 'review',
+    summary: ({ body }) => [body.status && `Review ${String(body.status).toLowerCase()}`, body.reply !== undefined && 'Replied to a review'].filter(Boolean).join(', '),
+  })
   @Patch('reviews/:id')
   async updateReview(@Param('id') id: string, @Body() dto: ReviewUpdateDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -204,6 +237,7 @@ export class AdminOverviewController {
 
   // ───── Questions ─────
 
+  @Perm(Permission.SUPPORT)
   @Get('questions')
   async allQuestions(@Query() query: Record<string, string>) {
     const page = clamp(toInt(query.page, 1), 1, 1000);
@@ -221,6 +255,8 @@ export class AdminOverviewController {
     return { items, total, page, pages: Math.max(1, Math.ceil(total / 20)) };
   }
 
+  @Perm(Permission.SUPPORT)
+  @Audit({ action: 'question.update', entity: 'question', summary: ({ body }) => (body.answer ? 'Answered a product question' : 'Updated a product question') })
   @Patch('questions/:id')
   async answer(@Param('id') id: string, @Body() dto: QuestionUpdateDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -250,6 +286,8 @@ export class AdminOverviewController {
     return this.settings.get();
   }
 
+  @Perm(Permission.SETTINGS)
+  @Audit({ action: 'settings.update', entity: 'settings', summary: ({ body }) => `Changed store settings: ${Object.keys(body ?? {}).join(', ')}` })
   @Put('settings')
   updateSettings(@Body() body: Record<string, unknown>) {
     return this.settings.update(body);

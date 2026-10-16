@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post } from '@nestjs/common';
-import { BannerPlacement, Role, VoucherType } from '@prisma/client';
+import { BannerPlacement, Permission, VoucherType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -16,7 +16,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Roles } from '../common/auth';
+import { Perm } from '../common/auth';
 import { variantLabel } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -63,7 +63,7 @@ class BannerDto {
   @IsOptional() @IsDateString() endsAt?: string | null;
 }
 
-@Roles(Role.ADMIN)
+@Perm(Permission.MARKETING)
 @Controller('admin')
 export class AdminMarketingController {
   constructor(private readonly prisma: PrismaService) {}
