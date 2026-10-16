@@ -21,6 +21,8 @@ jobs:
 
   deploy:
     needs: ci
+    # Only main reaches production, even when the workflow is started by hand.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment:

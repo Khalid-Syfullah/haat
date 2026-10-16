@@ -5,7 +5,7 @@ https://production.khalidsyfullah.com. PostgreSQL 16 runs on the same machine.
 
 ## How a deploy works
 
-1. Push or merge to `main` (or run **Deploy** by hand from the Actions tab).
+1. Push or merge to `main` (or run **Deploy** by hand from the Actions tab on `main`).
 2. `deploy.yml` runs the CI workflow first: type-check, both builds, migrations, seed and the
    45 end-to-end checks against a throwaway Postgres. If CI fails, nothing is deployed.
 3. It assumes the AWS role `haat-github-deploy` through GitHub OIDC (no stored keys), which
@@ -55,7 +55,8 @@ release once no running code reads them.
 
 ## Rollback
 
-Run **Deploy** from the Actions tab on an older commit, or on the server:
+Open an older successful **Deploy** run in the Actions tab and choose **Re-run all jobs** (it
+deploys that run's commit), or on the server:
 
 ```bash
 sudo -u ubuntu -H haat-deploy <older-sha>
@@ -76,4 +77,6 @@ sudo -u ubuntu -H haat-deploy <older-sha>
    `haat-github-deploy` uses `deploy/iam/trust-policy.json` (both the name and the numeric-ID
    form of the subject claim, since GitHub may send either) and `deploy/iam/permissions-policy.json`
    as its inline policy.
-5. GitHub: the `production` environment only allows the `main` branch.
+5. GitHub: the `production` environment is created by the first deploy. The workflow only
+   deploys from `main`; for a second guard, set Settings > Environments > `production` >
+   Deployment branches to `main`.
