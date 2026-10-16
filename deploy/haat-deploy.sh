@@ -38,13 +38,17 @@ echo "$SHA" >"$REL/REVISION"
 log "Release $TS for ${SHA:0:7}"
 
 PREV=$(readlink -f "$APP/current" 2>/dev/null || true)
+SWITCHED=0
 fail() {
+  trap - ERR
   log "Deploy failed: $*"
-  if [ -n "$PREV" ] && [ -d "$PREV" ] && [ "$PREV" != "$REL" ]; then
+  if [ "$SWITCHED" = 1 ] && [ -n "$PREV" ] && [ -d "$PREV" ]; then
     ln -sfn "$PREV" "$APP/current.tmp" && mv -Tf "$APP/current.tmp" "$APP/current"
     pm2 startOrReload "$APP/ecosystem.config.cjs" --update-env >/dev/null || true
     log "Restored the previous release $(basename "$PREV")"
     rm -rf "$REL"
+  elif [ "$SWITCHED" = 0 ]; then
+    rm -rf "$REL" # traffic never moved; the live release is untouched
   fi
   exit 1
 }
@@ -72,6 +76,7 @@ if [ -d apps/api/uploads/seed ]; then mkdir -p "$APP/shared/uploads/seed" && cp 
 # 5. Switch traffic
 cp deploy/ecosystem.config.cjs "$APP/ecosystem.config.cjs"
 ln -sfn "$REL" "$APP/current.tmp" && mv -Tf "$APP/current.tmp" "$APP/current"
+SWITCHED=1
 pm2 startOrReload "$APP/ecosystem.config.cjs" --update-env || fail "pm2 reload"
 
 # 6. Health check: the API answers and the storefront renders
