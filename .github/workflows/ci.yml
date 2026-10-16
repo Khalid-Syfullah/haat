@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: haat
+          POSTGRES_PASSWORD: haat
+          POSTGRES_DB: haat
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U haat" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://haat:haat@localhost:5432/haat?schema=public
+      JWT_SECRET: ci-secret
+      PAYMENT_PROVIDER: mock
+      WEB_URL: http://localhost:3000
+      API_URL: http://localhost:4000
+      DISABLE_JOBS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Database
+        run: npm run db:deploy -w apps/api && npm run db:seed -w apps/api
+      - name: Type-check
+        run: npx tsc --noEmit -p apps/api/tsconfig.json && npm run typecheck -w apps/web
+      - name: Build API
+        run: npm run build -w apps/api
+      - name: End-to-end checks
+        run: |
+          (cd apps/api && node dist/main.js > /tmp/api.log 2>&1 &)
+          npx wait-on -t 60000 http-get://localhost:4000/api/health
+          npm run test:e2e -w apps/api
+      - name: Build web
+        run: npm run build -w apps/web
+      - if: failure()
+        run: cat /tmp/api.log || true

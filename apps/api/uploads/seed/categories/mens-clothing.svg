@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgcmensclothing" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#faf6ef"/><stop offset="1" stop-color="#e2dcd0"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgcmensclothing)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <path d="M312 130 L250 152 L168 282 L232 334 L272 292 L272 704 Q272 714 282 714 H518 Q528 714 528 704 L528 292 L568 334 L632 282 L550 152 L488 130 L452 130 Q400 150 348 130 Z" fill="#f3ead8"/>
+        <path d="M348 130 Q400 150 452 130 L452 150 Q400 172 348 150 Z" fill="#b8862b"/>
+        <rect x="392" y="150" width="16" height="200" rx="6" fill="#b8862b" opacity="0.85"/>
+        <circle cx="400" cy="184" r="7" fill="#9e988c"/><circle cx="400" cy="226" r="7" fill="#9e988c"/><circle cx="400" cy="268" r="7" fill="#9e988c"/><circle cx="400" cy="310" r="7" fill="#9e988c"/>
+        <path d="M290 690 H510" stroke="#b8862b" stroke-width="10" opacity="0.7"/>
+</svg>

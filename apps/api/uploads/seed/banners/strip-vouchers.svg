@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="800" height="260">
+  <defs><linearGradient id="stv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff6a3d"/><stop offset="1" stop-color="#e8452c"/></linearGradient></defs>
+  <rect width="800" height="260" fill="url(#stv)"/>
+  <text x="48" y="118" font-family="Hind Siliguri, Noto Sans Bengali, Arial, sans-serif" font-size="44" font-weight="800" fill="#fff">Collect vouchers</text>
+  <text x="50" y="166" font-family="Hind Siliguri, Noto Sans Bengali, Arial, sans-serif" font-size="22" fill="#fff" opacity="0.92">Save up to ৳500 on today's orders</text>
+  <g transform="translate(650 130) scale(0.32) translate(-400 -400)"><path d="M300 330 V250 Q400 170 500 250 V330" stroke="#a69e92" stroke-width="22" fill="none"/>
+        <path d="M210 330 H590 L630 640 Q632 660 612 660 H188 Q168 660 170 640 Z" fill="#fff3e0"/>
+        <path d="M210 330 H590 L580 420 Q400 470 220 420 Z" fill="#a69e92" opacity="0.3"/>
+        <rect x="378" y="420" width="44" height="34" rx="8" fill="#ffb020"/></g>
+</svg>

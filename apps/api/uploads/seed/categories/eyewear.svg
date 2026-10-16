@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgceyewear" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#f0f4fd"/><stop offset="1" stop-color="#d1d8e7"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgceyewear)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <defs><linearGradient id="gceyewear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3564c2"/><stop offset="1" stop-color="#11131a"/></linearGradient></defs>
+        <path d="M130 360 H670" stroke="#2b3040" stroke-width="18" stroke-linecap="round"/>
+        <path d="M160 350 H370 Q380 350 376 372 L360 470 Q350 520 290 520 H230 Q170 520 162 470 L150 372 Q146 350 160 350 Z" fill="url(#gceyewear)" stroke="#2b3040" stroke-width="14"/>
+        <path d="M430 350 H640 Q654 350 650 372 L638 470 Q630 520 570 520 H510 Q450 520 440 470 L424 372 Q420 350 430 350 Z" fill="url(#gceyewear)" stroke="#2b3040" stroke-width="14"/>
+        <path d="M376 372 Q400 350 424 372" stroke="#2b3040" stroke-width="14" fill="none"/>
+        <path d="M190 380 L250 380" stroke="#fff" stroke-width="10" opacity="0.4" stroke-linecap="round"/>
+</svg>

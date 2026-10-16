@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgckitchen" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#f7f7f9"/><stop offset="1" stop-color="#dddee0"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgckitchen)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <defs><linearGradient id="gckitchen" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9aa3b2"/><stop offset="0.5" stop-color="#eef1f5"/><stop offset="1" stop-color="#8d96a6"/></linearGradient></defs>
+        <path d="M280 300 Q262 600 300 624 H500 Q538 600 520 300 Z" fill="url(#gckitchen)"/>
+        <path d="M300 300 Q400 250 500 300 Z" fill="#2b3040"/><rect x="380" y="250" width="40" height="30" rx="10" fill="#2b3040"/>
+        <path d="M520 330 Q616 350 606 500 Q600 580 520 584" stroke="#2b3040" stroke-width="34" fill="none" stroke-linecap="round"/>
+        <path d="M282 362 L196 300 L214 286 L290 330 Z" fill="#9aa3b2"/>
+        <rect x="250" y="620" width="300" height="44" rx="14" fill="#2b3040"/><circle cx="400" cy="642" r="8" fill="#ff5a5a"/>
+</svg>

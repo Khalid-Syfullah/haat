@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+
+/*
+ * Haat design tokens.
+ * Padma green carries the brand, marigold marks deals and the kantha-stitch motif,
+ * sindoor red is reserved for prices and discounts.
+ */
+@theme {
+  --color-padma: #0b6e4f;
+  --color-padma-dark: #07523a;
+  --color-padma-deep: #053d2b;
+  --color-padma-tint: #e3f1eb;
+  --color-marigold: #f2a900;
+  --color-marigold-dark: #b97f00;
+  --color-marigold-tint: #fff4d6;
+  --color-sindoor: #d7263d;
+  --color-sindoor-tint: #fde8eb;
+  --color-ink: #17212b;
+  --color-ink-soft: #5b6672;
+  --color-ink-faint: #8a939c;
+  --color-line: #e2e6e3;
+  --color-paper: #f2f4f1;
+
+  --font-sans: 'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-brand: 'Galada', 'Hind Siliguri', cursive;
+
+  --radius-card: 6px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: 'tnum' 0;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-marigold);
+    outline-offset: 2px;
+  }
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* Kantha running stitch: the store's one decorative signature. */
+  .stitch-line {
+    height: 3px;
+    background-image: repeating-linear-gradient(90deg, var(--color-marigold) 0 12px, transparent 12px 20px);
+    border-radius: 2px;
+  }
+  .stitch-box {
+    border: 2px dashed var(--color-marigold);
+  }
+  /* Voucher tickets: stitched perforation with punched notches */
+  .ticket {
+    position: relative;
+    background: var(--color-marigold-tint);
+    border-radius: 8px;
+  }
+  .ticket::before,
+  .ticket::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    border-radius: 50%;
+    background: var(--ticket-bg, #fff);
+  }
+  .ticket::before {
+    left: -8px;
+  }
+  .ticket::after {
+    right: -8px;
+  }
+  .ticket-divider {
+    border-left: 2px dashed var(--color-marigold);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

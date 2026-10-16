@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgcaudio" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#fff1ea"/><stop offset="1" stop-color="#ebd4c8"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgcaudio)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <path d="M240 430 C230 210 570 210 560 430" stroke="#2b3040" stroke-width="36" fill="none" stroke-linecap="round"/>
+        <rect x="186" y="380" width="120" height="190" rx="56" fill="#2b3040"/>
+        <rect x="494" y="380" width="120" height="190" rx="56" fill="#2b3040"/>
+        <rect x="268" y="402" width="44" height="146" rx="22" fill="#1c1f2a"/>
+        <rect x="488" y="402" width="44" height="146" rx="22" fill="#1c1f2a"/>
+        <circle cx="246" cy="475" r="18" fill="#ff7a45"/>
+</svg>

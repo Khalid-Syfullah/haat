@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgp11c1" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#fef0f6"/><stop offset="1" stop-color="#e9d1db"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgp11c1)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <defs><linearGradient id="sp11c1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ed96b6"/><stop offset="1" stop-color="#943c5d"/></linearGradient></defs>
+        <rect x="334" y="100" width="132" height="220" rx="32" fill="#ef8fb3"/>
+        <rect x="334" y="480" width="132" height="220" rx="32" fill="#ef8fb3"/>
+        <circle cx="400" cy="560" r="6" fill="#9b5d74"/><circle cx="400" cy="590" r="6" fill="#9b5d74"/><circle cx="400" cy="620" r="6" fill="#9b5d74"/><circle cx="400" cy="650" r="6" fill="#9b5d74"/>
+        <rect x="286" y="262" width="228" height="276" rx="64" fill="#15171f"/>
+        <rect x="302" y="278" width="196" height="244" rx="52" fill="url(#sp11c1)"/>
+        <text x="400" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#fff">10:09</text>
+        <rect x="350" y="440" width="100" height="10" rx="5" fill="#fff" opacity="0.5"/>
+        <rect x="512" y="350" width="16" height="56" rx="6" fill="#15171f"/>
+</svg>

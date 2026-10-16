@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260" width="800" height="260">
+  <defs><linearGradient id="stc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#5b3fd6"/></linearGradient></defs>
+  <rect width="800" height="260" fill="url(#stc)"/>
+  <text x="48" y="118" font-family="Hind Siliguri, Noto Sans Bengali, Arial, sans-serif" font-size="44" font-weight="800" fill="#fff">Daily check-in</text>
+  <text x="50" y="166" font-family="Hind Siliguri, Noto Sans Bengali, Arial, sans-serif" font-size="22" fill="#fff" opacity="0.92">Earn coins and pay with them at checkout</text>
+  <g transform="translate(650 130) scale(0.32) translate(-400 -400)"><path d="M500 360 q96 0 96 84 q0 84 -96 84" stroke="#ffd166" stroke-width="34" fill="none"/>
+        <rect x="260" y="300" width="250" height="300" rx="34" fill="#ffd166"/>
+        <rect x="260" y="300" width="250" height="40" rx="20" fill="#a68842" opacity="0.35"/>
+        <path d="M330 450 h110" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+        <path d="M330 240 q20 -30 0 -60 M385 240 q20 -30 0 -60 M440 240 q20 -30 0 -60" stroke="#9aa3b2" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.7"/></g>
+</svg>

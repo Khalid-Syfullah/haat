@@ -1,0 +1,62 @@
+# Local development: `docker compose up -d db` gives you Postgres only.
+# Whole stack in containers: `docker compose --profile app up -d --build`,
+# then seed once: `docker compose exec api npm run db:seed`.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: haat
+      POSTGRES_PASSWORD: haat
+      POSTGRES_DB: haat
+    ports:
+      - "5432:5432"
+    volumes:
+      - haat-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://haat:haat@db:5432/haat?schema=public
+      PORT: 4000
+      WEB_URL: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:4000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      SSLCZ_STORE_ID: ${SSLCZ_STORE_ID:-}
+      SSLCZ_STORE_PASSWORD: ${SSLCZ_STORE_PASSWORD:-}
+      SSLCZ_SANDBOX: ${SSLCZ_SANDBOX:-true}
+      UPLOAD_DIR: /app/apps/api/uploads
+    volumes:
+      - haat-uploads:/app/apps/api/uploads
+    ports:
+      - "4000:4000"
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_URL: http://api:4000
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  haat-db:
+  haat-uploads:

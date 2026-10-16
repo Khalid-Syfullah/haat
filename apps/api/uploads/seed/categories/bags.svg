@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs><radialGradient id="bgcbags" cx="0.5" cy="0.4" r="0.75"><stop offset="0" stop-color="#f2f5f8"/><stop offset="1" stop-color="#d5d9df"/></radialGradient></defs>
+  <rect width="800" height="800" fill="url(#bgcbags)"/>
+  <ellipse cx="400" cy="700" rx="230" ry="26" fill="#000" opacity="0.08"/>
+  <path d="M330 200 Q330 140 400 140 Q470 140 470 200" stroke="#373e49" stroke-width="22" fill="none"/>
+        <rect x="236" y="190" width="328" height="460" rx="96" fill="#556070"/>
+        <rect x="286" y="410" width="228" height="190" rx="44" fill="#373e49" opacity="0.45"/>
+        <path d="M300 440 H500" stroke="#ffb020" stroke-width="10" stroke-linecap="round"/>
+        <rect x="370" y="250" width="60" height="16" rx="8" fill="#ffb020"/>
+</svg>
