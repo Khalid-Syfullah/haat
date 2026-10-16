@@ -301,6 +301,7 @@ async function main() {
   check('courier delivery confirmation marks the order delivered', doneFan.data.status === 'DELIVERED' && doneFan.data.paymentStatus === 'PAID', doneFan.data.status);
   check('customer sees courier tracking updates', doneFan.data.shipments?.[0]?.events?.length >= 3);
   check('staff notes stay out of the customer view', !doneFan.data.events.some((e: any) => e.title === 'Staff note' || 'actorName' in e));
+  check('courier updates shown to customers never name staff', !JSON.stringify(doneFan.data.shipments).includes('Rafi'));
   const lateHook = await hook('returned', 'e2e-4');
   check('a final state is never overwritten', lateHook.status === 200 && (await rafi.get(`/admin/orders/${fanId}`)).data.status === 'DELIVERED');
 
