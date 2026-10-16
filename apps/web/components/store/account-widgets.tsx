@@ -1,7 +1,24 @@
 'use client';
 
 import clsx from 'clsx';
-import { Bell, MapPin, Pencil, Star, Trash2 } from 'lucide-react';
+import {
+  Bell,
+  BellRing,
+  CreditCard,
+  LifeBuoy,
+  MapPin,
+  MessageCircleQuestion,
+  MessageSquare,
+  Package,
+  Pencil,
+  ShoppingCart,
+  Star,
+  Tag,
+  Trash2,
+  TrendingDown,
+  Undo2,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
@@ -299,7 +316,29 @@ export function AddressBook({ initial, user }: { initial: Address[]; user: { nam
 
 // ───── Notifications ─────
 
-export function NotificationList({ items }: { items: { id: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }[] }) {
+const NOTIFICATION_ICONS: Record<string, { icon: LucideIcon; tone: string }> = {
+  order: { icon: Package, tone: 'bg-padma-tint text-padma' },
+  payment: { icon: CreditCard, tone: 'bg-padma-tint text-padma' },
+  promo: { icon: Tag, tone: 'bg-marigold-tint text-marigold-dark' },
+  return: { icon: Undo2, tone: 'bg-[#e6eefc] text-[#2a55b5]' },
+  review: { icon: MessageSquare, tone: 'bg-marigold-tint text-marigold-dark' },
+  question: { icon: MessageCircleQuestion, tone: 'bg-[#e6eefc] text-[#2a55b5]' },
+  alert: { icon: BellRing, tone: 'bg-padma-tint text-padma' },
+  cart: { icon: ShoppingCart, tone: 'bg-marigold-tint text-marigold-dark' },
+  support: { icon: LifeBuoy, tone: 'bg-padma-tint text-padma' },
+};
+
+function notificationIcon(type: string | undefined, title: string) {
+  // A price-drop alert reads better with a falling arrow than a bell.
+  if (type === 'alert' && /price/i.test(title)) return { icon: TrendingDown, tone: 'bg-padma-tint text-padma' };
+  return (type && NOTIFICATION_ICONS[type]) || { icon: Bell, tone: 'bg-black/5 text-ink-soft' };
+}
+
+export function NotificationList({
+  items,
+}: {
+  items: { id: string; type?: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }[];
+}) {
   const router = useRouter();
   const { refresh } = useSession();
   const unread = items.some((n) => !n.readAt);
@@ -328,9 +367,13 @@ export function NotificationList({ items }: { items: { id: string; title: string
       ) : (
         <ul className="divide-y divide-line rounded-[var(--radius-card)] border border-line bg-white">
           {items.map((n) => {
+            const { icon: Icon, tone } = notificationIcon(n.type, n.title);
             const body = (
               <>
-                <span className={clsx('mt-2 size-2 shrink-0 rounded-full', n.readAt ? 'bg-transparent' : 'bg-sindoor')} />
+                <span className={clsx('relative flex size-9 shrink-0 items-center justify-center rounded-full', tone)}>
+                  <Icon className="size-[18px]" aria-hidden />
+                  {!n.readAt && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-sindoor ring-2 ring-white" aria-label="Unread" />}
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className={clsx('block text-[15px]', !n.readAt && 'font-semibold')}>{n.title}</span>
                   <span className="block text-[15px] text-ink-soft">{n.body}</span>
@@ -362,7 +405,7 @@ export function NotificationList({ items }: { items: { id: string; title: string
 
 // ───── Profile ─────
 
-export function ProfileForms({ profile }: { profile: { name: string; phone: string; email: string | null; hasPassword: boolean } }) {
+export function ProfileForms({ profile }: { profile: { name: string; phone: string; email: string | null; hasPassword: boolean; marketingSms?: boolean } }) {
   const toast = useToast();
   const { refresh } = useSession();
   const [name, setName] = useState(profile.name);
@@ -432,6 +475,64 @@ export function ProfileForms({ profile }: { profile: { name: string; phone: stri
           {profile.hasPassword ? 'Change password' : 'Set password'}
         </Button>
       </form>
+      <SmsPreference initial={profile.marketingSms ?? true} />
     </div>
+  );
+}
+
+function SmsPreference({ initial }: { initial: boolean }) {
+  const toast = useToast();
+  const { refresh } = useSession();
+  const [on, setOn] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle() {
+    const next = !on;
+    setOn(next);
+    setBusy(true);
+    try {
+      await patch('/account/profile', { marketingSms: next });
+      await refresh();
+      toast(next ? "Saved. We'll text you about price drops, restocks and your cart." : "Saved. We won't text you about deals.");
+    } catch (err) {
+      setOn(!next);
+      toast(err instanceof ApiError ? err.message : 'Could not save', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[var(--radius-card)] border border-line bg-white p-4 sm:p-5 md:col-span-2" aria-labelledby="sms-h">
+      <h2 id="sms-h" className="font-semibold">
+        Text messages
+      </h2>
+      <div className="mt-2 flex items-start justify-between gap-4">
+        <label htmlFor="sms-switch" className="min-w-0 cursor-pointer">
+          <span id="sms-label" className="block text-[15px] text-ink">
+            Text me about price drops, restocks and my cart
+          </span>
+          <span id="sms-hint" className="mt-0.5 block text-sm text-ink-soft">
+            Order updates and login codes are always sent, whatever you choose here.
+          </span>
+        </label>
+        <button
+          id="sms-switch"
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="sms-label"
+          aria-describedby="sms-hint"
+          disabled={busy}
+          onClick={toggle}
+          className={clsx(
+            'relative mt-0.5 inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-70',
+            on ? 'bg-padma' : 'bg-[#cfd5d1]',
+          )}
+        >
+          <span className={clsx('inline-block size-5 rounded-full bg-white shadow transition-transform', on ? 'translate-x-6' : 'translate-x-1')} />
+        </button>
+      </div>
+    </section>
   );
 }

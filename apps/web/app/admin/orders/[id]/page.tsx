@@ -1,15 +1,16 @@
 import clsx from 'clsx';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ShieldAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { OrderStatusBadge, Panel, paymentLabel, PaymentStatusBadge, ReturnStatusBadge, RiskBadge, Row, Table, TableWrap, Td, Th, Thumb } from '@/components/admin/bits';
+import { OrderStatusBadge, Panel, paymentLabel, PaymentStatusBadge, ReturnStatusBadge, RiskBadge, Row, Table, TableWrap, Td, Th, Thumb, type Tone } from '@/components/admin/bits';
 import { OrderActions, StaffNote } from '@/components/admin/order-actions';
 import { PackingSlip } from '@/components/admin/packing-slip';
+import { ShipmentPanel } from '@/components/admin/shipment-panel';
 import { AdminHeader } from '@/components/admin/shell';
 import { Badge } from '@/components/ui';
 import { date, dateTime, ORDER_STATUS_LABEL, tk } from '@/lib/format';
 import { mustGet, serverApi } from '@/lib/server';
-import type { AdminOrder } from '@/components/admin/types';
+import type { AdminOrder, CourierOption, TicketStatus } from '@/components/admin/types';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -19,12 +20,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 const ACTOR: Record<string, string> = { admin: 'Staff', customer: 'Customer', system: 'System' };
 
+const TICKET: Record<TicketStatus, { label: string; tone: Tone }> = {
+  OPEN: { label: 'Needs a reply', tone: 'amber' },
+  PENDING: { label: 'Waiting on customer', tone: 'blue' },
+  RESOLVED: { label: 'Resolved', tone: 'green' },
+};
+
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [o, settings, store] = await Promise.all([
+  const [o, settings, store, couriers] = await Promise.all([
     mustGet<AdminOrder>(`/admin/orders/${id}`),
     serverApi<{ cod: { callThreshold: number; advanceThreshold: number } }>('/admin/settings'),
     serverApi<{ store: { name: string; supportPhone: string } }>('/store'),
+    // The page still works without it; booking then explains it could not load couriers.
+    serverApi<CourierOption[]>('/admin/couriers').catch(() => null),
   ]);
   const callAt = settings?.cod.callThreshold ?? 40;
   const advanceAt = settings?.cod.advanceThreshold ?? 70;
@@ -57,7 +66,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
-          <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+          <div className="min-w-0 space-y-4 lg:col-start-2 lg:row-start-1">
             <Panel title="Next step" bodyClassName="p-4">
               <OrderActions
                 id={o.id}
@@ -72,8 +81,21 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 needsCall={o.needsCall}
                 courier={o.courier}
                 trackingNo={o.trackingNo}
+                courierOptions={couriers}
+                booking={{
+                  id: o.id,
+                  orderNo: o.orderNo,
+                  shipName: o.shipName,
+                  shipPhone: o.shipPhone,
+                  shipLine: o.shipLine,
+                  shipArea: o.shipArea,
+                  shipDistrict: o.shipDistrict,
+                  total: o.total,
+                  paymentStatus: o.paymentStatus,
+                  note: o.note,
+                }}
               />
-              {o.courier && (
+              {o.courier && o.shipments.length === 0 && (
                 <dl className="mt-4 border-t border-line pt-3 text-sm">
                   <Row label="Courier">{o.courier}</Row>
                   <Row label="Tracking">
@@ -82,6 +104,8 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 </dl>
               )}
             </Panel>
+
+            {o.shipments.length > 0 && <ShipmentPanel shipments={o.shipments} couriers={couriers} />}
           </div>
 
           <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
@@ -226,14 +250,17 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                     <span
                       className={clsx(
                         'absolute top-1.5 -left-[25px] size-2.5 rounded-full ring-4 ring-white',
-                        idx === o.events.length - 1 ? 'bg-padma' : e.title === 'Staff note' ? 'bg-marigold' : 'bg-[#c9cfcb]',
+                        idx === o.events.length - 1 ? 'bg-padma' : e.internal || e.title === 'Staff note' ? 'bg-marigold' : 'bg-[#c9cfcb]',
                       )}
                       aria-hidden
                     />
-                    <p className="text-[15px] font-medium text-ink">{e.title}</p>
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[15px] font-medium text-ink">
+                      {e.title}
+                      {e.internal && <Badge tone="amber">Staff only</Badge>}
+                    </p>
                     {e.note && <p className="text-sm whitespace-pre-line text-ink">{e.note}</p>}
                     <p className="text-xs text-ink-soft">
-                      {dateTime(e.createdAt)}, {ACTOR[e.actor] ?? e.actor}
+                      {dateTime(e.createdAt)}, {e.actor === 'admin' && e.actorName ? `Staff · ${e.actorName}` : (ACTOR[e.actor] ?? e.actor)}
                     </p>
                   </li>
                 ))}
@@ -273,6 +300,25 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
                 View customer
               </Link>
             </Panel>
+
+            {o.tickets.length > 0 && (
+              <Panel title="Support requests" bodyClassName="divide-y divide-line">
+                {o.tickets.map((t) => (
+                  <Link key={t.id} href={`/admin/tickets/${t.id}`} className="group flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-paper focus-visible:bg-paper">
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 font-medium text-ink group-hover:text-padma">{t.subject}</span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-soft">
+                        <Badge tone={TICKET[t.status]?.tone ?? 'neutral'}>{TICKET[t.status]?.label ?? t.status}</Badge>
+                        <span>
+                          <span className="font-mono">{t.ticketNo}</span>, {date(t.createdAt)}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-ink-faint group-hover:text-ink" aria-hidden />
+                  </Link>
+                ))}
+              </Panel>
+            )}
 
             <Panel title="Cash on delivery risk" bodyClassName="p-4 text-sm">
               <div className="flex items-center justify-between gap-2">

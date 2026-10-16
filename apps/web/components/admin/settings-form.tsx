@@ -13,6 +13,8 @@ export interface AppSettings {
   cod: { enabled: boolean; maxOrderTotal: number; callThreshold: number; advanceThreshold: number };
   coins: { checkInReward: number; orderRewardPercent: number; reviewReward: number; maxRedeemPercent: number };
   orders: { onlinePaymentExpiryMinutes: number; maxQtyPerItem: number };
+  alerts: { smsEnabled: boolean; abandonedCartHours: number; abandonedCartMaxDays: number };
+  support: { smsOnReply: boolean };
   returns: { windowDays: number; reasons: string[] };
 }
 
@@ -103,6 +105,11 @@ function validate(s: AppSettings): Errors {
   whole('coins.redeem', s.coins.maxRedeemPercent, 0, 100);
   whole('orders.expiry', s.orders.onlinePaymentExpiryMinutes, 5, 1440);
   whole('orders.maxQty', s.orders.maxQtyPerItem, 1, 100);
+  whole('alerts.cartHours', s.alerts.abandonedCartHours, 0, 168);
+  whole('alerts.cartDays', s.alerts.abandonedCartMaxDays, 1, 30);
+  if (!e['alerts.cartHours'] && !e['alerts.cartDays'] && s.alerts.abandonedCartHours >= s.alerts.abandonedCartMaxDays * 24) {
+    e['alerts.cartHours'] = `Must be under ${s.alerts.abandonedCartMaxDays * 24} hours (the age limit below), or no cart would get a reminder`;
+  }
   whole('returns.window', s.returns.windowDays, 0, 60);
   if (s.returns.reasons.filter((r) => r.trim()).length === 0) e['returns.reasons'] = 'Keep at least one reason for customers to choose';
   return e;
@@ -128,12 +135,16 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
       document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       return;
     }
-    const body: AppSettings = {
+    const clean: AppSettings = {
       ...s,
       store: { name: s.store.name.trim(), tagline: s.store.tagline.trim(), supportPhone: s.store.supportPhone.trim(), supportEmail: s.store.supportEmail.trim() },
       returns: { ...s.returns, reasons: s.returns.reasons.map((r) => r.trim()).filter(Boolean) },
     };
-    const next = await run('save', () => put<AppSettings>('/admin/settings', body), 'Settings saved');
+    // The API deep-merges, so send only the sections that changed; the audit log then names just those.
+    const body = Object.fromEntries(
+      (Object.keys(clean) as (keyof AppSettings)[]).filter((k) => JSON.stringify(clean[k]) !== JSON.stringify(saved[k])).map((k) => [k, clean[k]]),
+    ) as Partial<AppSettings>;
+    const next = await run('save', () => put<AppSettings>('/admin/settings', Object.keys(body).length ? body : clean), 'Settings saved');
     if (next) {
       setS(next);
       setSaved(next);
@@ -143,7 +154,7 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
   const reasons = s.returns.reasons;
 
   return (
-    <form onSubmit={submit} noValidate className="pb-20">
+    <form onSubmit={submit} noValidate>
       <div className="rounded-[6px] border border-line bg-white">
         <Section title="Store" description="Shown in the header, emails and on packing slips.">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -277,6 +288,43 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
               min={1}
               max={100}
             />
+          </div>
+        </Section>
+
+        <Section title="Alerts and reminders" description="Messages that bring customers back: price drops, items back in stock and carts they left behind.">
+          <div>
+            <Switch checked={s.alerts.smsEnabled} onChange={(smsEnabled) => set('alerts', { smsEnabled })} label="Text customers about price drops, restocks and carts" />
+            <p className="mt-1 text-xs text-ink-soft">
+              Only customers who agreed to offers by text get these. When off, they still see the alerts in their notifications on the site.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberField
+              label="Remind about a cart after"
+              suffix="hours"
+              hint="Hours after the customer last touched their cart. Enter 0 to turn cart reminders off."
+              value={s.alerts.abandonedCartHours}
+              onChange={(v) => set('alerts', { abandonedCartHours: v })}
+              error={errors['alerts.cartHours']}
+              max={168}
+            />
+            <NumberField
+              label="Skip carts older than"
+              suffix="days"
+              hint="Carts left longer than this get no reminder. Each cart is reminded once."
+              value={s.alerts.abandonedCartMaxDays}
+              onChange={(v) => set('alerts', { abandonedCartMaxDays: v })}
+              error={errors['alerts.cartDays']}
+              min={1}
+              max={30}
+            />
+          </div>
+        </Section>
+
+        <Section title="Support" description="Support tickets customers open from their account.">
+          <div>
+            <Switch checked={s.support.smsOnReply} onChange={(smsOnReply) => set('support', { smsOnReply })} label="Text the customer when staff reply" />
+            <p className="mt-1 text-xs text-ink-soft">The message says there is a reply and links to the ticket. The reply itself stays on the site.</p>
           </div>
         </Section>
 

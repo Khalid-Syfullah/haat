@@ -6,11 +6,16 @@ import { tk } from '@/lib/format';
 interface Day {
   day: string; // YYYY-MM-DD (Dhaka)
   orders: number;
-  revenue: number;
+  /** null when the viewer can't see sales figures */
+  revenue: number | null;
 }
+
+export type ChartMetric = 'revenue' | 'orders';
 
 const H = 300;
 const PAD = { top: 22, right: 8, bottom: 26, left: 52 };
+// Order counts need far less room for their axis labels than taka amounts.
+const PAD_LEFT_ORDERS = 32;
 
 // Formatted by hand: server and browser ICU data disagree on short month names ("Sep" / "Sept"),
 // which would break hydration.
@@ -26,14 +31,18 @@ function compactTk(n: number) {
   return `৳${n}`;
 }
 
-/** Clean tick step: 1, 2, 2.5 or 5 times a power of ten. */
-function niceMax(max: number) {
-  if (max <= 0) return { top: 1000, step: 250 };
+/** Clean tick step: 1, 2, 2.5 or 5 times a power of ten. Counts use whole steps only. */
+function niceMax(max: number, whole = false) {
+  if (max <= 0) return whole ? { top: 4, step: 1 } : { top: 1000, step: 250 };
   const rough = max / 4;
   const pow = 10 ** Math.floor(Math.log10(rough));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= rough) ?? 10 * pow;
+  const steps = (whole ? [1, 2, 5, 10] : [1, 2, 2.5, 5, 10]).map((m) => m * pow).filter((s) => !whole || s >= 1);
+  const step = steps.find((s) => s >= rough) ?? (whole ? Math.max(1, 10 * pow) : 10 * pow);
   return { top: Math.ceil(max / step) * step, step };
 }
+
+const ordersText = (n: number) => `${n} order${n === 1 ? '' : 's'}`;
+const valueOf = (d: Day, metric: ChartMetric) => (metric === 'orders' ? d.orders : (d.revenue ?? 0));
 
 /** Column with a 4px rounded data end and a square base. */
 function barPath(x: number, y: number, w: number, h: number) {
@@ -42,7 +51,15 @@ function barPath(x: number, y: number, w: number, h: number) {
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
-export function RevenueChart({ days }: { days: Day[] }) {
+/**
+ * Daily bars for the last 30 days. `metric="revenue"` (default) plots order value in taka;
+ * `metric="orders"` plots the number of orders, for staff who can't see sales figures.
+ */
+export function RevenueChart({ days, metric = 'revenue' }: { days: Day[]; metric?: ChartMetric }) {
+  const byOrders = metric === 'orders';
+  const value = (d: Day) => valueOf(d, metric);
+  const tick = (n: number) => (byOrders ? String(n) : compactTk(n));
+  const padLeft = byOrders ? PAD_LEFT_ORDERS : PAD.left;
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [active, setActive] = useState<number | null>(null);
@@ -55,10 +72,10 @@ export function RevenueChart({ days }: { days: Day[] }) {
     return () => ro.disconnect();
   }, []);
 
-  const { top, step } = useMemo(() => niceMax(Math.max(...days.map((d) => d.revenue), 0)), [days]);
-  const peak = useMemo(() => days.reduce((best, d, i) => (d.revenue > (days[best]?.revenue ?? -1) ? i : best), 0), [days]);
+  const { top, step } = useMemo(() => niceMax(Math.max(...days.map((d) => valueOf(d, metric)), 0), metric === 'orders'), [days, metric]);
+  const peak = useMemo(() => days.reduce((best, d, i) => (valueOf(d, metric) > (days[best] ? valueOf(days[best], metric) : -1) ? i : best), 0), [days, metric]);
 
-  const innerW = width - PAD.left - PAD.right;
+  const innerW = width - padLeft - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const slot = innerW / days.length;
   const barW = Math.max(3, Math.min(24, slot - 2));
@@ -77,7 +94,11 @@ export function RevenueChart({ days }: { days: Day[] }) {
   };
 
   const a = active !== null ? days[active] : null;
-  const tipX = active !== null ? PAD.left + slot * active + slot / 2 : 0;
+  const tipX = active !== null ? padLeft + slot * active + slot / 2 : 0;
+  const peakDay = days[peak];
+  const summary = byOrders
+    ? `Daily orders for the last 30 days. Most: ${ordersText(peakDay ? peakDay.orders : 0)} on ${peakDay ? longLabel(peakDay.day) : ''}.`
+    : `Daily revenue for the last 30 days. Highest: ${tk(peakDay?.revenue)} on ${peakDay ? longLabel(peakDay.day) : ''}.`;
 
   return (
     <div>
@@ -86,7 +107,7 @@ export function RevenueChart({ days }: { days: Day[] }) {
           width={width}
           height={H}
           role="img"
-          aria-label={`Daily revenue for the last 30 days. Highest: ${tk(days[peak]?.revenue)} on ${days[peak] ? longLabel(days[peak].day) : ''}. Use the left and right arrow keys to read each day.`}
+          aria-label={`${summary} Use the left and right arrow keys to read each day.`}
           tabIndex={0}
           onKeyDown={onKey}
           onFocus={() => setActive((v) => v ?? days.length - 1)}
@@ -95,22 +116,23 @@ export function RevenueChart({ days }: { days: Day[] }) {
         >
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="#e2e6e3" strokeWidth={1} shapeRendering="crispEdges" />
-              <text x={PAD.left - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-ink-faint text-[11px] tabular-nums">
-                {compactTk(t)}
+              <line x1={padLeft} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="#e2e6e3" strokeWidth={1} shapeRendering="crispEdges" />
+              <text x={padLeft - 8} y={y(t)} dy="0.32em" textAnchor="end" className="fill-ink-faint text-[11px] tabular-nums">
+                {tick(t)}
               </text>
             </g>
           ))}
           {days.map((d, i) => {
-            const cx = PAD.left + slot * i + slot / 2;
-            const h = (d.revenue / top) * innerH;
+            const cx = padLeft + slot * i + slot / 2;
+            const v = value(d);
+            const h = (v / top) * innerH;
             const isToday = i === days.length - 1;
             const showLabel = isToday || (days.length - 1 - i) % labelEvery === 0;
             return (
               <g key={d.day}>
-                <path d={barPath(cx - barW / 2, y(d.revenue), barW, h)} className={active === i ? 'fill-padma-dark' : active === null ? 'fill-padma' : 'fill-padma/55'} />
+                <path d={barPath(cx - barW / 2, y(v), barW, h)} className={active === i ? 'fill-padma-dark' : active === null ? 'fill-padma' : 'fill-padma/55'} />
                 {/* Hit target covers the whole slot, not just the bar */}
-                <rect x={PAD.left + slot * i} y={PAD.top} width={slot} height={innerH} fill="transparent" onPointerEnter={() => setActive(i)} />
+                <rect x={padLeft + slot * i} y={PAD.top} width={slot} height={innerH} fill="transparent" onPointerEnter={() => setActive(i)} />
                 {showLabel && (
                   <text x={cx} y={H - 8} textAnchor="middle" className="fill-ink-faint text-[11px]">
                     {isToday ? 'Today' : label(d.day)}
@@ -119,12 +141,12 @@ export function RevenueChart({ days }: { days: Day[] }) {
               </g>
             );
           })}
-          {days[peak] && days[peak].revenue > 0 && active === null && (
-            <text x={PAD.left + slot * peak + slot / 2} y={y(days[peak].revenue) - 6} textAnchor="middle" className="fill-ink-soft text-[11px] font-semibold tabular-nums">
-              {compactTk(days[peak].revenue)}
+          {peakDay && value(peakDay) > 0 && active === null && (
+            <text x={padLeft + slot * peak + slot / 2} y={y(value(peakDay)) - 6} textAnchor="middle" className="fill-ink-soft text-[11px] font-semibold tabular-nums">
+              {tick(value(peakDay))}
             </text>
           )}
-          <line x1={PAD.left} x2={width - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#c9cfcb" strokeWidth={1} shapeRendering="crispEdges" />
+          <line x1={padLeft} x2={width - PAD.right} y1={PAD.top + innerH} y2={PAD.top + innerH} stroke="#c9cfcb" strokeWidth={1} shapeRendering="crispEdges" />
         </svg>
         {a && (
           <div
@@ -132,10 +154,19 @@ export function RevenueChart({ days }: { days: Day[] }) {
             style={{ left: Math.min(Math.max(tipX, 70), width - 70), transform: 'translateX(-50%)' }}
             role="status"
           >
-            <p className="font-semibold text-ink tabular-nums">{tk(a.revenue)}</p>
-            <p className="text-ink-soft tabular-nums">
-              {a.orders} order{a.orders === 1 ? '' : 's'}, {longLabel(a.day)}
-            </p>
+            {byOrders ? (
+              <>
+                <p className="font-semibold text-ink tabular-nums">{ordersText(a.orders)}</p>
+                <p className="text-ink-soft tabular-nums">{longLabel(a.day)}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-ink tabular-nums">{tk(a.revenue)}</p>
+                <p className="text-ink-soft tabular-nums">
+                  {ordersText(a.orders)}, {longLabel(a.day)}
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -147,7 +178,7 @@ export function RevenueChart({ days }: { days: Day[] }) {
               <tr className="bg-[#f8f9f7] text-xs text-ink-soft">
                 <th className="sticky top-0 bg-[#f8f9f7] px-3 py-2 text-left font-semibold">Day</th>
                 <th className="sticky top-0 bg-[#f8f9f7] px-3 py-2 text-right font-semibold">Orders</th>
-                <th className="sticky top-0 bg-[#f8f9f7] px-3 py-2 text-right font-semibold">Revenue</th>
+                {!byOrders && <th className="sticky top-0 bg-[#f8f9f7] px-3 py-2 text-right font-semibold">Revenue</th>}
               </tr>
             </thead>
             <tbody>
@@ -155,7 +186,7 @@ export function RevenueChart({ days }: { days: Day[] }) {
                 <tr key={d.day} className="border-t border-line">
                   <td className="px-3 py-1.5">{longLabel(d.day)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{d.orders}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{tk(d.revenue)}</td>
+                  {!byOrders && <td className="px-3 py-1.5 text-right tabular-nums">{tk(d.revenue)}</td>}
                 </tr>
               ))}
             </tbody>
