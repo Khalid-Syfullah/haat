@@ -1,9 +1,10 @@
 name: CI
 
+# Runs on pull requests. Pushes to main run the same checks from deploy.yml,
+# which deploys only when they pass.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   test:
