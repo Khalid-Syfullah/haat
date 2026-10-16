@@ -57,7 +57,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
           />
         ) : (
           <BulkSelection key={`${values.q}|${values.lowOnly}|${data?.page ?? 1}`} ids={items.map((v) => v.id)}>
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto">
               <table className="w-full min-w-[920px] text-sm">
                 <thead>
                   <tr>

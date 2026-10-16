@@ -95,7 +95,7 @@ export class OrdersController {
             courier: true,
             trackingCode: true,
             state: true,
-            events: { orderBy: { createdAt: 'desc' }, take: 10, select: { status: true, message: true, createdAt: true } },
+            events: { orderBy: { createdAt: 'desc' }, take: 10, select: { status: true, message: true, source: true, createdAt: true } },
           },
         },
       },
@@ -104,6 +104,11 @@ export class OrdersController {
     const now = Date.now();
     return {
       ...order,
+      // Customers see the courier's own words; notes from staff (bookings, test moves) stay internal.
+      shipments: order.shipments.map((sh) => ({
+        ...sh,
+        events: sh.events.map(({ source, ...e }) => ({ ...e, message: source === 'webhook' || source === 'sync' ? e.message : null })),
+      })),
       zoneLabel: ZONE_LABELS[order.zone],
       canCancel: CUSTOMER_CANCELLABLE.includes(order.status),
       canPay: order.status === 'AWAITING_PAYMENT' && (!order.expiresAt || order.expiresAt.getTime() > now),
