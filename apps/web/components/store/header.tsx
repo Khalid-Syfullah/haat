@@ -58,7 +58,7 @@ function AccountMenu() {
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-md border border-line bg-white py-1 text-[15px] text-ink shadow-lg">
-          {user.role === 'ADMIN' && (
+          {(user.role === 'ADMIN' || user.role === 'STAFF') && (
             <Link role="menuitem" href="/admin" className="block px-4 py-2 font-semibold text-padma hover:bg-paper" onClick={() => setOpen(false)}>
               Store admin
             </Link>

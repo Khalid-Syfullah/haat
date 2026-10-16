@@ -4,7 +4,11 @@ import clsx from 'clsx';
 import {
   BadgePercent,
   ChartColumn,
+  ChartNoAxesCombined,
   ClipboardList,
+  FileSpreadsheet,
+  History,
+  LifeBuoy,
   Image as ImageIcon,
   Layers,
   LogOut,
@@ -16,6 +20,7 @@ import {
   Store,
   Tags,
   Undo2,
+  UserCog,
   Users,
   Warehouse,
   X,
@@ -25,41 +30,71 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useState } from 'react';
 import { post } from '@/lib/api';
+import type { Permission } from '@/lib/server';
 
-const NAV: { group: string; items: { href: string; label: string; icon: typeof Package }[] }[] = [
+/** `perm` is the staff permission a link needs; OWNER links are for store owners only. */
+type NavItem = { href: string; label: string; icon: typeof Package; perm?: Permission | 'OWNER' };
+
+const NAV: { group: string; items: NavItem[] }[] = [
   { group: 'Sales', items: [
     { href: '/admin', label: 'Dashboard', icon: ChartColumn },
-    { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
-    { href: '/admin/returns', label: 'Returns', icon: Undo2 },
-    { href: '/admin/customers', label: 'Customers', icon: Users },
+    { href: '/admin/orders', label: 'Orders', icon: ClipboardList, perm: 'ORDERS' },
+    { href: '/admin/returns', label: 'Returns', icon: Undo2, perm: 'ORDERS' },
+    { href: '/admin/customers', label: 'Customers', icon: Users, perm: 'ORDERS' },
+    { href: '/admin/reports', label: 'Reports', icon: ChartNoAxesCombined, perm: 'REPORTS' },
   ] },
   { group: 'Catalog', items: [
-    { href: '/admin/products', label: 'Products', icon: Package },
-    { href: '/admin/inventory', label: 'Inventory', icon: Warehouse },
-    { href: '/admin/categories', label: 'Categories', icon: Layers },
-    { href: '/admin/brands', label: 'Brands', icon: Tags },
+    { href: '/admin/products', label: 'Products', icon: Package, perm: 'CATALOG' },
+    { href: '/admin/inventory', label: 'Inventory', icon: Warehouse, perm: 'CATALOG' },
+    { href: '/admin/products/import', label: 'Import & export', icon: FileSpreadsheet, perm: 'CATALOG' },
+    { href: '/admin/categories', label: 'Categories', icon: Layers, perm: 'CATALOG' },
+    { href: '/admin/brands', label: 'Brands', icon: Tags, perm: 'CATALOG' },
   ] },
   { group: 'Marketing', items: [
-    { href: '/admin/flash-sales', label: 'Flash sales', icon: Zap },
-    { href: '/admin/vouchers', label: 'Vouchers', icon: BadgePercent },
-    { href: '/admin/banners', label: 'Banners', icon: ImageIcon },
+    { href: '/admin/flash-sales', label: 'Flash sales', icon: Zap, perm: 'MARKETING' },
+    { href: '/admin/vouchers', label: 'Vouchers', icon: BadgePercent, perm: 'MARKETING' },
+    { href: '/admin/banners', label: 'Banners', icon: ImageIcon, perm: 'MARKETING' },
   ] },
   { group: 'Customer care', items: [
-    { href: '/admin/reviews', label: 'Reviews', icon: MessageSquare },
-    { href: '/admin/questions', label: 'Questions', icon: MessageCircleQuestion },
+    { href: '/admin/tickets', label: 'Support tickets', icon: LifeBuoy, perm: 'SUPPORT' },
+    { href: '/admin/reviews', label: 'Reviews', icon: MessageSquare, perm: 'SUPPORT' },
+    { href: '/admin/questions', label: 'Questions', icon: MessageCircleQuestion, perm: 'SUPPORT' },
   ] },
-  { group: 'Store', items: [{ href: '/admin/settings', label: 'Settings', icon: Settings }] },
+  { group: 'Store', items: [
+    { href: '/admin/settings', label: 'Settings', icon: Settings, perm: 'SETTINGS' },
+    { href: '/admin/staff', label: 'Staff', icon: UserCog, perm: 'OWNER' },
+    { href: '/admin/audit-log', label: 'Audit log', icon: History, perm: 'OWNER' },
+  ] },
 ];
 
-export function AdminShell({ name, storeName, children }: { name: string; storeName: string; children: ReactNode }) {
+export function AdminShell({
+  name,
+  storeName,
+  owner,
+  permissions,
+  children,
+}: {
+  name: string;
+  storeName: string;
+  owner: boolean;
+  permissions: Permission[];
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const active = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname.startsWith(href));
+  const allowed = (item: NavItem) => !item.perm || (item.perm === 'OWNER' ? owner : permissions.includes(item.perm));
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length);
+  // The longest matching link wins, so /admin/products/import doesn't also light up Products.
+  const current = groups
+    .flatMap((g) => g.items.map((i) => i.href))
+    .filter((href) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.length - a.length)[0];
+  const active = (href: string) => href === current;
 
   const nav = (
     <nav className="flex flex-col gap-5 px-3 py-4" aria-label="Admin">
-      {NAV.map((g) => (
+      {groups.map((g) => (
         <div key={g.group}>
           <p className="px-3 pb-1 text-xs font-medium text-white/50">{g.group}</p>
           {g.items.map(({ href, label, icon: Icon }) => (
@@ -111,7 +146,10 @@ export function AdminShell({ name, storeName, children }: { name: string; storeN
           <Link href="/" className="inline-flex items-center gap-1.5 text-ink-soft hover:text-ink" target="_blank">
             <Store className="size-4" /> View store
           </Link>
-          <span className="hidden text-ink-soft sm:inline">{name}</span>
+          <span className="hidden text-ink-soft sm:inline">
+            {name}
+            {!owner && <span className="ml-1.5 rounded bg-black/5 px-1.5 py-0.5 text-xs font-medium">Staff</span>}
+          </span>
           <button
             className="inline-flex items-center gap-1.5 text-ink-soft hover:text-sindoor"
             onClick={async () => {

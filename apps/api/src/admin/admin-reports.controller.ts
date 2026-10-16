@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Param, Query, Res } from '@nestjs/common';
 import { Permission, Prisma } from '@prisma/client';
 import type { Response } from 'express';
+import { Audit } from '../common/audit';
 import { Perm } from '../common/auth';
 import { clamp, dhakaDay, toInt } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
@@ -289,6 +290,11 @@ export class AdminReportsController {
   }
 
   /** CSV download of any report, or of the orders themselves. */
+  @Audit({
+    action: 'report.export',
+    entity: 'report',
+    summary: ({ params }) => `Downloaded the ${params.name} report as CSV`,
+  })
   @Get('export/:name')
   async export(@Param('name') name: string, @Query() q: Record<string, string>, @Res() res: Response) {
     const r = parseRange(q);

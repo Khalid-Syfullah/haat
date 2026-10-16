@@ -321,6 +321,8 @@ async function main() {
   check('CSV export opens in Excel (UTF-8 with BOM)', csv.status === 200 && csv.type.startsWith('text/csv') && csv.body.toString('utf8').startsWith('﻿Product,Orders'));
   const ordersCsv = await admin.download('/admin/reports/export/orders');
   check('orders export lists this run’s orders', ordersCsv.body.toString('utf8').includes(fanOrder.data.orderNo));
+  await new Promise((r) => setTimeout(r, 300));
+  check('downloads of customer data are audited', (await admin.get('/admin/audit-log?q=orders%20report')).data.items.some((a: any) => a.action === 'report.export'));
 
   // ───── Price-drop and back-in-stock alerts ─────
   console.log('\nAlerts');

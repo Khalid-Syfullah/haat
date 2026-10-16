@@ -15,7 +15,7 @@ function useAfterLogin() {
   return async (role?: string) => {
     await refresh();
     const next = params.get('next');
-    const safe = next && next.startsWith('/') && !next.startsWith('//') ? next : role === 'ADMIN' ? '/admin' : '/';
+    const safe = next && next.startsWith('/') && !next.startsWith('//') ? next : role === 'ADMIN' || role === 'STAFF' ? '/admin' : '/';
     router.replace(safe);
     router.refresh();
   };
