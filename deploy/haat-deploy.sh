@@ -44,6 +44,8 @@ fail() {
   log "Deploy failed: $*"
   if [ "$SWITCHED" = 1 ] && [ -n "$PREV" ] && [ -d "$PREV" ]; then
     ln -sfn "$PREV" "$APP/current.tmp" && mv -Tf "$APP/current.tmp" "$APP/current"
+    # Run the previous release with its own pm2 config, not the one this release brought.
+    if [ -f "$APP/ecosystem.config.cjs.prev" ]; then mv -f "$APP/ecosystem.config.cjs.prev" "$APP/ecosystem.config.cjs"; fi
     pm2 startOrReload "$APP/ecosystem.config.cjs" --update-env >/dev/null || true
     log "Restored the previous release $(basename "$PREV")"
     rm -rf "$REL"
@@ -73,7 +75,8 @@ log "Applying database migrations"
 mkdir -p "$APP/shared/uploads"
 if [ -d apps/api/uploads/seed ]; then mkdir -p "$APP/shared/uploads/seed" && cp -a apps/api/uploads/seed/. "$APP/shared/uploads/seed/"; fi
 
-# 5. Switch traffic
+# 5. Switch traffic (keeping the running pm2 config for a rollback)
+if [ -f "$APP/ecosystem.config.cjs" ]; then cp -f "$APP/ecosystem.config.cjs" "$APP/ecosystem.config.cjs.prev"; fi
 cp deploy/ecosystem.config.cjs "$APP/ecosystem.config.cjs"
 ln -sfn "$REL" "$APP/current.tmp" && mv -Tf "$APP/current.tmp" "$APP/current"
 SWITCHED=1
@@ -95,6 +98,7 @@ if ! healthy; then
   fail "health check"
 fi
 pm2 save --force >/dev/null
+rm -f "$APP/ecosystem.config.cjs.prev"
 
 # 7. Keep the newest releases only
 find "$APP/releases" -mindepth 1 -maxdepth 1 -type d | sort -r | tail -n +$((KEEP + 1)) | xargs -r rm -rf

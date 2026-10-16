@@ -9,6 +9,14 @@ APP_USER=ubuntu
 DOMAIN=production.khalidsyfullah.com
 REPO=https://github.com/Khalid-Syfullah/haat.git
 
+# Node 20.9+ and pm2 run the apps. Install Node yourself (e.g. NodeSource 22.x) if it's missing.
+NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "Node.js 20.9 or newer is required (found: $(node -v 2>/dev/null || echo none)). Install Node 22, then run this again." >&2
+  exit 1
+fi
+command -v pm2 >/dev/null || npm install -g pm2@6 --silent
+
 # PostgreSQL 16 (Ubuntu 24.04), listening on localhost only
 if ! command -v psql >/dev/null; then
   apt-get update -qq
@@ -58,8 +66,13 @@ set -euo pipefail
 REF="${1:?usage: haat-deploy <commit-sha | branch>}"
 SRC=/var/www/haat/src
 if [ "$(id -un)" != "ubuntu" ]; then exec sudo -u ubuntu -H "$0" "$@"; fi
-git -C "$SRC" fetch --quiet --prune origin '+refs/heads/*:refs/remotes/origin/*'
-SHA=$(git -C "$SRC" rev-parse --verify --quiet "$REF^{commit}" || git -C "$SRC" rev-parse --verify "origin/$REF^{commit}")
+git -C "$SRC" fetch --quiet --prune --tags origin '+refs/heads/*:refs/remotes/origin/*'
+# A branch name means the branch as GitHub has it now, never the clone's stale local copy.
+if [[ "$REF" =~ ^[0-9a-f]{7,40}$ ]]; then
+  SHA=$(git -C "$SRC" rev-parse --verify "$REF^{commit}")
+else
+  SHA=$(git -C "$SRC" rev-parse --verify --quiet "origin/$REF^{commit}" || git -C "$SRC" rev-parse --verify "$REF^{commit}")
+fi
 SCRIPT=$(mktemp /tmp/haat-deploy.XXXXXX)
 trap 'rm -f "$SCRIPT"' EXIT
 git -C "$SRC" show "$SHA:deploy/haat-deploy.sh" >"$SCRIPT"
