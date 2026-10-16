@@ -21,6 +21,8 @@ export async function serverApi<T = any>(path: string, opts: { revalidate?: numb
   });
   if (res.status === 404) return null;
   if (res.status === 401) return null;
+  // A staff member opened a part of the admin panel their account can't use
+  if (res.status === 403 && path.startsWith('/admin')) redirect('/admin/no-access');
   if (!res.ok) throw new Error(`API ${path} failed with ${res.status}`);
   return (await res.json()) as T;
 }
@@ -31,8 +33,20 @@ export async function mustGet<T = any>(path: string): Promise<T> {
   return data;
 }
 
+export type Permission = 'CATALOG' | 'ORDERS' | 'MARKETING' | 'SUPPORT' | 'REPORTS' | 'SETTINGS';
+
 export interface Me {
-  user: { id: string; name: string; phone: string; email: string | null; role: 'CUSTOMER' | 'ADMIN'; coins: number } | null;
+  user: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    role: 'CUSTOMER' | 'STAFF' | 'ADMIN';
+    coins: number;
+    /** Every permission for owners, the granted ones for staff, none for customers. */
+    permissions: Permission[];
+    marketingSms: boolean;
+  } | null;
   unreadNotifications?: number;
   cartCount?: number;
 }

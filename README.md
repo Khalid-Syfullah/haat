@@ -5,6 +5,11 @@ flash sales, collectible vouchers, coins, photo reviews, product Q&A, returns,
 cash on delivery with refusal-risk scoring, bKash / Nagad / card payments through
 SSLCommerz, Bangla and Banglish search, and an admin panel that runs it all.
 
+Phase 2 adds staff accounts with per-area permissions and an audit log, courier booking
+with Steadfast, Pathao and RedX, sales reports with CSV export, Excel catalog import and
+bulk price and stock edits, price-drop and back-in-stock alerts, abandoned-cart reminders
+by SMS, and customer support tickets.
+
 "Haat" (হাট) is a placeholder brand. Change it in **Admin → Settings → Store name**
 (and the wordmark in `apps/web/components/store/logo.tsx`).
 
@@ -14,8 +19,8 @@ SSLCommerz, Bangla and Banglish search, and an admin panel that runs it all.
 | --- | --- |
 | API | NestJS 11, Prisma 6, PostgreSQL 16 (with `pg_trgm` for fuzzy search) |
 | Web | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
-| Jobs | `@nestjs/schedule` inside the API (unpaid-order expiry, payment reconciliation) |
-| Tests | `apps/api/test/e2e.ts` — 45 checks over checkout, payments, stock races, returns |
+| Jobs | `@nestjs/schedule` inside the API (unpaid orders, payments, alerts, cart reminders, courier status) |
+| Tests | `apps/api/test/e2e.ts` — 113 checks over checkout, payments, stock races, returns, staff permissions, couriers, reports, imports, alerts and support |
 
 ```
 haat/
@@ -47,11 +52,16 @@ Open http://localhost:3000.
 
 | Who | Login | Password |
 | --- | --- | --- |
-| Customer (has orders, coins, vouchers) | `01711111111` | `customer123` |
-| Admin (open `/admin`) | `admin@haat.local` or `01700000000` | `admin1234` |
+| Customer (has orders, coins, vouchers, support requests) | `01711111111` | `customer123` |
+| Owner (open `/admin`) | `admin@haat.local` or `01700000000` | `admin1234` |
+| Staff: orders and support | `01700000001` | `staff1234` |
+| Staff: catalog and marketing | `01700000002` | `staff1234` |
 
 SMS login codes are printed in the API log and shown on screen while `SMS_PROVIDER=console`.
+Every text message the store sends (or would send) is listed under **Admin → Audit log → Text messages**.
 Online payments go to a built-in test page while `PAYMENT_PROVIDER=mock`.
+Outside production a **Test courier** books pretend consignments, so you can try the whole
+delivery flow without courier accounts.
 
 `npm run db:seed` wipes and reloads the demo store at any time.
 
@@ -72,13 +82,20 @@ the end-to-end checks and both production builds on every push.
    `API_PUBLIC_URL` must be reachable from the internet so SSLCommerz can post IPN callbacks.
    The client in `apps/api/src/payments/sslcommerz.client.ts` follows the v4 hosted-page API
    but has not been run against a live sandbox yet — do a test payment before launch.
-2. **SMS** — plug a provider into `otpRequest` in `apps/api/src/auth/auth.controller.ts`.
-3. **Secrets** — set a long random `JWT_SECRET` and `COOKIE_SECURE=true` behind HTTPS.
-4. **Images** — uploads go to `UPLOAD_DIR` on disk; mount a volume or switch the storage
+2. **SMS** — set `SMS_PROVIDER=sslwireless`, `SSL_SMS_API_TOKEN` and `SSL_SMS_SID` (SSL Wireless
+   SMS Plus). Other providers plug into `apps/api/src/common/sms.service.ts`.
+3. **Couriers** — add the credentials for the couriers you use (see `apps/api/.env.example`),
+   then paste each webhook URL from **Admin → Settings → Integrations** into that courier's
+   merchant panel. Booking happens from the order page once an order is packed; a job polls
+   open consignments every 30 minutes in case a webhook is missed. The adapters follow the
+   couriers' published APIs but have not yet been run against live accounts: book one test
+   parcel with each before relying on it.
+4. **Secrets** — set a long random `JWT_SECRET` and `COOKIE_SECURE=true` behind HTTPS.
+5. **Images** — uploads go to `UPLOAD_DIR` on disk; mount a volume or switch the storage
    engine in `apps/api/src/uploads/uploads.controller.ts` to S3.
-5. **Jobs** — scheduled jobs run inside the API; if you run several API instances, set
+6. **Jobs** — scheduled jobs run inside the API; if you run several API instances, set
    `DISABLE_JOBS=true` on all but one.
-6. **Compliance** — trade licence, DBID registration, and the current Digital Commerce
+7. **Compliance** — trade licence, DBID registration, and the current Digital Commerce
    Operation Guidelines (delivery and refund timelines). Return windows, fees and COD
    rules are all in Admin → Settings.
 
@@ -89,13 +106,11 @@ docker compose --profile app up -d --build
 docker compose exec api npm run db:seed
 ```
 
-### A single server (e.g. EC2 + nginx)
+### A single server (EC2 + nginx), with deploys from GitHub
 
-Build with `npm run build`, run `npm run start` under a process manager (pm2 or systemd),
-and proxy your domain to port 3000. Only `/api/payments/sslcommerz/*` needs to reach the
-API directly (set `API_PUBLIC_URL` to a public URL that forwards to port 4000), everything
-else goes through the Next.js app. A t4g.small is fine for staging; for production use a
-managed Postgres (RDS) and give the API and web their own containers.
+This repo deploys itself to one EC2 instance on every push to `main`: CI first, then a
+release-folder deploy over AWS Systems Manager with a health check and automatic rollback.
+How it works, the server layout and how to roll back are in [`deploy/README.md`](deploy/README.md).
 
 ## How the important parts work
 
@@ -111,3 +126,16 @@ managed Postgres (RDS) and give the API and web their own containers.
   callback, the IPN and the reconciliation job all arrive.
 - **Search** expands each word through a synonym table (Bangla ⇄ Banglish ⇄ English),
   matches Latin words at word starts, and uses trigram similarity for typos.
+- **Staff permissions** are checked on every admin API call (`@Perm(...)` in
+  `apps/api/src/common/auth.ts`), re-read from the database each time, so taking access away
+  works at once. Owners hold every permission and manage staff.
+- **Audit log.** A global interceptor (`apps/api/src/common/audit.ts`) writes one row for each
+  successful change a staff member makes, with a readable summary and the request body
+  (passwords and tokens hidden).
+- **Couriers** share one adapter interface (`apps/api/src/couriers/`). Webhooks are checked
+  with each courier's own secret, deduplicated, and can only move a parcel forwards; a
+  delivery confirms the order and a return marks it as a failed delivery, which restocks it.
+- **Excel import** previews every change first and applies all of it or none of it in one
+  transaction. Stock changes land in the inventory movement log.
+- **Alerts** compare against the price the customer saw (flash prices included) and claim
+  each alert before sending, so nobody is notified twice.

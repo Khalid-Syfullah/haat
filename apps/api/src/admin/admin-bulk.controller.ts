@@ -31,6 +31,7 @@ export class AdminBulkController {
     private readonly alerts: AlertsService,
   ) {}
 
+  @Audit({ action: 'catalog.export', entity: 'catalog', summary: () => 'Downloaded the catalog as Excel' })
   @Get('catalog/export')
   async export(@Res() res: Response) {
     const buf = await exportWorkbook(this.prisma);

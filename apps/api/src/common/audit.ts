@@ -52,8 +52,9 @@ function labelOf(result: any): string | undefined {
 const VERB: Record<string, string> = { POST: 'Created', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Deleted' };
 
 /**
- * Writes one AuditLog row for every successful non-GET request a staff member makes under /api/admin
- * (and any other route marked @Audit). Logging never blocks or fails the request itself.
+ * Writes one AuditLog row for every successful non-GET request a staff member makes under /api/admin,
+ * and for any route marked @Audit (including downloads of customer data). Logging never blocks or
+ * fails the request itself.
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -71,7 +72,8 @@ export class AuditInterceptor implements NestInterceptor {
     const skip = this.reflector.getAllAndOverride<boolean>(SKIP_AUDIT_KEY, [ctx.getHandler(), ctx.getClass()]);
     const path = (req.originalUrl || req.url).split('?')[0];
     const mutating = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-    if (skip || !mutating || !isStaff(req.user) || (!meta && !path.startsWith('/api/admin/'))) return next.handle();
+    // Changes under /api/admin are always logged; reads only when marked @Audit (data exports).
+    if (skip || (!mutating && !meta) || !isStaff(req.user) || (!meta && !path.startsWith('/api/admin/'))) return next.handle();
 
     const user = req.user!;
     return next.handle().pipe(
