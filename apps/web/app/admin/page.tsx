@@ -98,19 +98,19 @@ export default async function AdminHome() {
           <Panel
             title="Revenue, last 30 days"
             description="Daily order value, Dhaka time"
-            className="xl:self-start"
-            bodyClassName="px-4 pt-3 pb-4"
+            className="flex flex-col"
+            bodyClassName="flex flex-1 flex-col px-4 pt-3 pb-4"
             actions={
               <Link href="/admin/reports" className="text-sm font-medium text-padma hover:underline">
                 Full reports
               </Link>
             }
           >
-            <RevenueChart days={d.last30.days} />
+            <RevenueChart days={d.last30.days} fill />
           </Panel>
         ) : (
-          <Panel title="Orders, last 30 days" description="Orders placed each day, Dhaka time" className="xl:self-start" bodyClassName="px-4 pt-3 pb-4">
-            <RevenueChart days={d.last30.days} metric="orders" />
+          <Panel title="Orders, last 30 days" description="Orders placed each day, Dhaka time" className="flex flex-col" bodyClassName="flex flex-1 flex-col px-4 pt-3 pb-4">
+            <RevenueChart days={d.last30.days} metric="orders" fill />
           </Panel>
         )}
 
@@ -169,7 +169,7 @@ export default async function AdminHome() {
                     <Th>Placed</Th>
                     <Th>Customer</Th>
                     <Th>Payment</Th>
-                    <Th align="right">Total</Th>
+                    {money && <Th align="right">Total</Th>}
                     <Th>Status</Th>
                   </tr>
                 </thead>
@@ -188,9 +188,11 @@ export default async function AdminHome() {
                       <Td className="whitespace-nowrap text-ink-soft">{dateTime(o.createdAt)}</Td>
                       <Td className="whitespace-nowrap">{o.customer}</Td>
                       <Td className="whitespace-nowrap text-ink-soft">{paymentLabel(o.paymentMethod)}</Td>
-                      <Td num className="font-medium">
-                        {tk(o.total)}
-                      </Td>
+                      {money && (
+                        <Td num className="font-medium">
+                          {tk(o.total)}
+                        </Td>
+                      )}
                       <Td>
                         <OrderStatusBadge status={o.status} />
                       </Td>

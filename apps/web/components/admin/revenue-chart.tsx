@@ -55,28 +55,32 @@ function barPath(x: number, y: number, w: number, h: number) {
  * Daily bars for the last 30 days. `metric="revenue"` (default) plots order value in taka;
  * `metric="orders"` plots the number of orders, for staff who can't see sales figures.
  */
-export function RevenueChart({ days, metric = 'revenue' }: { days: Day[]; metric?: ChartMetric }) {
+export function RevenueChart({ days, metric = 'revenue', fill = false }: { days: Day[]; metric?: ChartMetric; /** Grow to the parent's height (never below 300px). */ fill?: boolean }) {
   const byOrders = metric === 'orders';
   const value = (d: Day) => valueOf(d, metric);
   const tick = (n: number) => (byOrders ? String(n) : compactTk(n));
   const padLeft = byOrders ? PAD_LEFT_ORDERS : PAD.left;
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
+  const [height, setHeight] = useState(H);
   const [active, setActive] = useState<number | null>(null);
 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setWidth(Math.max(280, Math.floor(entry.contentRect.width))));
+    const ro = new ResizeObserver(([entry]) => {
+      setWidth(Math.max(280, Math.floor(entry.contentRect.width)));
+      if (fill) setHeight(Math.max(H, Math.floor(entry.contentRect.height)));
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fill]);
 
   const { top, step } = useMemo(() => niceMax(Math.max(...days.map((d) => valueOf(d, metric)), 0), metric === 'orders'), [days, metric]);
   const peak = useMemo(() => days.reduce((best, d, i) => (valueOf(d, metric) > (days[best] ? valueOf(days[best], metric) : -1) ? i : best), 0), [days, metric]);
 
   const innerW = width - padLeft - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
+  const innerH = height - PAD.top - PAD.bottom;
   const slot = innerW / days.length;
   const barW = Math.max(3, Math.min(24, slot - 2));
   const y = (v: number) => PAD.top + innerH - (v / top) * innerH;
@@ -101,18 +105,19 @@ export function RevenueChart({ days, metric = 'revenue' }: { days: Day[]; metric
     : `Daily revenue for the last 30 days. Highest: ${tk(peakDay?.revenue)} on ${peakDay ? longLabel(peakDay.day) : ''}.`;
 
   return (
-    <div>
-      <div ref={box} className="relative" onPointerLeave={() => setActive(null)}>
+    <div className={fill ? 'flex flex-1 flex-col' : undefined}>
+      {/* With `fill`, the SVG is taken out of flow so the box's size comes from the layout, not from the last drawn height */}
+      <div ref={box} className={fill ? 'relative min-h-[300px] flex-1' : 'relative'} onPointerLeave={() => setActive(null)}>
         <svg
           width={width}
-          height={H}
+          height={height}
           role="img"
           aria-label={`${summary} Use the left and right arrow keys to read each day.`}
           tabIndex={0}
           onKeyDown={onKey}
           onFocus={() => setActive((v) => v ?? days.length - 1)}
           onBlur={() => setActive(null)}
-          className="block rounded focus-visible:outline-2 focus-visible:outline-marigold"
+          className={`block rounded focus-visible:outline-2 focus-visible:outline-marigold ${fill ? 'absolute inset-0' : ''}`}
         >
           {ticks.map((t) => (
             <g key={t}>
@@ -134,7 +139,7 @@ export function RevenueChart({ days, metric = 'revenue' }: { days: Day[]; metric
                 {/* Hit target covers the whole slot, not just the bar */}
                 <rect x={padLeft + slot * i} y={PAD.top} width={slot} height={innerH} fill="transparent" onPointerEnter={() => setActive(i)} />
                 {showLabel && (
-                  <text x={cx} y={H - 8} textAnchor="middle" className="fill-ink-faint text-[11px]">
+                  <text x={cx} y={height - 8} textAnchor="middle" className="fill-ink-faint text-[11px]">
                     {isToday ? 'Today' : label(d.day)}
                   </text>
                 )}

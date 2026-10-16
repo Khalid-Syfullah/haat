@@ -93,7 +93,7 @@ export class AdminOverviewController {
         id: o.id,
         orderNo: o.orderNo,
         status: o.status,
-        total: o.total,
+        total: seesMoney ? o.total : null,
         customer: o.shipName,
         paymentMethod: o.paymentMethod,
         createdAt: o.createdAt,

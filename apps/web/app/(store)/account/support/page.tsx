@@ -75,6 +75,7 @@ export default async function SupportPage() {
                       <p className="mt-1 line-clamp-2 text-sm text-ink break-words">
                         <span className="font-semibold">{t.last.fromStaff ? `${store}: ` : 'You: '}</span>
                         {t.last.body}
+                        {t.last.body.length >= 140 && '…'}
                       </p>
                     )}
                     <p className="mt-0.5 text-xs text-ink-faint">{relative(t.lastMessageAt)}</p>

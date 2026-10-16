@@ -296,17 +296,14 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
           <div className="mt-5 flex gap-2">
             {outOfStock ? (
               alertFor('BACK_IN_STOCK') ? (
-                <div className="flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-padma-tint px-3 py-2 text-[15px] text-padma-dark" role="status">
+                <div className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-md bg-padma-tint py-1.5 pl-3 pr-1.5 text-[15px] text-padma-dark" role="status">
                   <BellRing className="size-5 shrink-0" aria-hidden />
-                  <span className="font-semibold">We&apos;ll tell you when it&apos;s back</span>
-                  <span aria-hidden className="text-padma-dark/50">
-                    ·
-                  </span>
+                  <span className="min-w-0 flex-1 font-semibold leading-snug">We&apos;ll tell you when it&apos;s back</span>
                   <button
                     type="button"
                     onClick={() => toggleAlert('BACK_IN_STOCK')}
                     disabled={alertBusy === 'BACK_IN_STOCK'}
-                    className="font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
+                    className="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-semibold text-ink-soft hover:bg-white/70 hover:text-ink disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -319,10 +316,10 @@ export function ProductView({ product, locations }: { product: ProductDetail; lo
               )
             ) : (
               <>
-                <Button size="lg" variant="deal" className="flex-1" onClick={() => addToCart(true)} disabled={!variant} loading={busy === 'buy'}>
+                <Button size="lg" variant="deal" className="flex-1 whitespace-nowrap px-3 sm:px-6" onClick={() => addToCart(true)} disabled={!variant} loading={busy === 'buy'}>
                   Buy now
                 </Button>
-                <Button size="lg" className="flex-1" onClick={() => addToCart(false)} disabled={!variant} loading={busy === 'cart'}>
+                <Button size="lg" className="flex-1 whitespace-nowrap px-3 sm:px-6" onClick={() => addToCart(false)} disabled={!variant} loading={busy === 'cart'}>
                   Add to cart
                 </Button>
               </>
@@ -423,7 +420,7 @@ function PriceDropToggle({ on, busy, onToggle }: { on: boolean; busy: boolean; o
       type="button"
       onClick={onToggle}
       disabled={busy}
-      className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-semibold text-padma underline-offset-2 hover:underline disabled:opacity-50"
+      className="mt-1.5 flex w-fit items-center gap-1.5 text-sm font-semibold text-padma underline-offset-2 hover:underline disabled:opacity-50"
     >
       <TrendingDown className="size-4" aria-hidden />
       Alert me if the price drops

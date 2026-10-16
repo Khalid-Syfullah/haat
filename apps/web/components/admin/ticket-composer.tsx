@@ -103,9 +103,9 @@ export function TicketComposer({ id, customerName, status }: { id: string; custo
         {error && <span className="mt-1 block text-sm text-sindoor">{error}</span>}
       </label>
       <PhotoPicker value={images} onChange={setImages} max={5} />
-      <div className="flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-2 border-t border-line pt-3">
         <p className="text-xs text-ink-soft">
-          {customerName} gets a notification and an SMS.{status === 'RESOLVED' ? ' Sending a reply reopens the ticket.' : ''}
+          {customerName} gets a notification and an SMS. {status === 'PENDING' ? 'The ticket stays' : 'Send reply moves the ticket to'} Waiting on customer.
         </p>
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => send('RESOLVED')} loading={busy === 'RESOLVED'} disabled={!!busy && busy !== 'RESOLVED'}>

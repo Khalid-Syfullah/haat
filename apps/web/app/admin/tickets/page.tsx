@@ -118,7 +118,6 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
                     <Th>Ticket</Th>
                     <Th>Customer</Th>
                     <Th>Order</Th>
-                    <Th>Topic</Th>
                     <Th>Priority</Th>
                     <Th>Assigned</Th>
                     <Th>Last message</Th>
@@ -128,8 +127,10 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
                 <tbody>
                   {data.items.map((t) => (
                     <tr key={t.id} className="relative hover:bg-paper/70">
-                      <Td className="min-w-72 max-w-[28rem]">
-                        <span className="block text-xs text-ink-soft tabular-nums">{t.ticketNo}</span>
+                      <Td className="min-w-64 max-w-[26rem]">
+                        <span className="block text-xs text-ink-soft">
+                          <span className="tabular-nums">{t.ticketNo}</span> · {t.categoryLabel}
+                        </span>
                         {/* The link's ::after stretches over the row so the whole row opens the ticket. */}
                         <Link href={`/admin/tickets/${t.id}`} className="font-semibold text-ink after:absolute after:inset-0 hover:text-padma hover:underline">
                           {t.subject}
@@ -149,7 +150,6 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
                           <span className="text-ink-faint">None</span>
                         )}
                       </Td>
-                      <Td className="whitespace-nowrap text-ink-soft">{t.categoryLabel}</Td>
                       <Td>{t.priority === 'HIGH' ? <UrgentBadge /> : <span className="text-ink-faint">Normal</span>}</Td>
                       <Td className="whitespace-nowrap">{t.assignee ? t.assignee.name : <span className="text-ink-faint">Unassigned</span>}</Td>
                       <Td className="whitespace-nowrap">
@@ -159,7 +159,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
                         </span>
                       </Td>
                       {status === 'all' && (
-                        <Td>
+                        <Td className="whitespace-nowrap">
                           <TicketStatusBadge status={t.status} />
                         </Td>
                       )}

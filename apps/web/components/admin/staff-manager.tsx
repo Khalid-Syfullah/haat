@@ -2,7 +2,8 @@
 
 import clsx from 'clsx';
 import { Pencil, Plus, UserMinus } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Field, Input, Modal } from '@/components/ui';
 import { patch, post } from '@/lib/api';
 import { useAction } from './use-action';
@@ -35,6 +36,16 @@ const BD_MOBILE = /^01[3-9]\d{8}$/;
 function localPhone(input: string) {
   const digits = input.replace(/\D/g, '');
   return digits.startsWith('880') ? digits.slice(2) : digits;
+}
+
+/**
+ * Dialogs opened from a table row are moved to <body>, so they don't pick up the cell's
+ * nowrap and small table text.
+ */
+function BodyPortal({ children }: { children: ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => setTarget(document.body), []);
+  return target ? createPortal(children, target) : null;
 }
 
 /** "Add staff member" button with its form. */
@@ -98,40 +109,42 @@ export function StaffRowActions({ member, permissions, isMe }: { member: StaffMe
         Remove access
       </Button>
 
-      {editing && <StaffForm member={member} permissions={permissions} isMe={isMe} onClose={() => setEditing(false)} />}
+      <BodyPortal>
+        {editing && <StaffForm member={member} permissions={permissions} isMe={isMe} onClose={() => setEditing(false)} />}
 
-      <Modal open={confirm === 'disable'} onClose={() => setConfirm(null)} title={`Disable ${member.name}?`}>
-        <p className="text-ink-soft">
-          {first} will be logged out and won&apos;t be able to log in, to the admin panel or the store, until you enable the account again. Nothing they did is
-          deleted.
-        </p>
-        <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
-          <Button variant="outline" onClick={() => setConfirm(null)}>
-            Cancel
-          </Button>
-          <Button variant="danger" loading={busy === 'active'} onClick={() => setActive(false)}>
-            Disable account
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal open={confirm === 'remove'} onClose={() => setConfirm(null)} title={`Remove ${member.name}'s admin access?`}>
-        <div className="space-y-2 text-ink-soft">
-          <p>{first} won&apos;t be able to open the admin panel any more. Support tickets assigned to them go back to the shared queue.</p>
-          <p>
-            Their account stays as a normal customer account, so they can still log in with <span className="font-medium text-ink tabular-nums">{member.phone}</span> and
-            shop. You can give access again later with Add staff member.
+        <Modal open={confirm === 'disable'} onClose={() => setConfirm(null)} title={`Disable ${member.name}?`}>
+          <p className="text-ink-soft">
+            {first} will be logged out and won&apos;t be able to log in, to the admin panel or the store, until you enable the account again. Nothing they did is
+            deleted.
           </p>
-        </div>
-        <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
-          <Button variant="outline" onClick={() => setConfirm(null)}>
-            Cancel
-          </Button>
-          <Button variant="danger" loading={busy === 'remove'} onClick={remove}>
-            Remove access
-          </Button>
-        </div>
-      </Modal>
+          <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
+            <Button variant="outline" onClick={() => setConfirm(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" loading={busy === 'active'} onClick={() => setActive(false)}>
+              Disable account
+            </Button>
+          </div>
+        </Modal>
+
+        <Modal open={confirm === 'remove'} onClose={() => setConfirm(null)} title={`Remove ${member.name}'s admin access?`}>
+          <div className="space-y-2 text-ink-soft">
+            <p>{first} won&apos;t be able to open the admin panel any more. Support tickets assigned to them go back to the shared queue.</p>
+            <p>
+              Their account stays as a normal customer account, so they can still log in with <span className="font-medium text-ink tabular-nums">{member.phone}</span> and
+              shop. You can give access again later with Add staff member.
+            </p>
+          </div>
+          <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
+            <Button variant="outline" onClick={() => setConfirm(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" loading={busy === 'remove'} onClick={remove}>
+              Remove access
+            </Button>
+          </div>
+        </Modal>
+      </BodyPortal>
     </div>
   );
 }
