@@ -72,7 +72,7 @@ async function variantBySku(prefix: string) {
 }
 
 async function main() {
-  console.log(`Haat end-to-end checks against ${API}\n`);
+  console.log(`Tuktak Bazaar end-to-end checks against ${API}\n`);
 
   // ───── Catalog ─────
   console.log('Catalog and search');
@@ -159,7 +159,7 @@ async function main() {
   // ───── Admin fulfils; customer reviews and returns ─────
   console.log('\nFulfilment, review and return');
   const admin = new Client();
-  const adminLogin = await admin.post('/auth/login', { login: 'admin@haat.local', password: 'admin1234' });
+  const adminLogin = await admin.post('/auth/login', { login: 'admin@tuktakbazaar.local', password: 'admin1234' });
   check('admin logs in', adminLogin.data.user?.role === 'ADMIN');
   const forbidden = await ayesha.get('/admin/dashboard');
   check('customers cannot open admin endpoints', forbidden.status === 403);

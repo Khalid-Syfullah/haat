@@ -389,7 +389,7 @@ export class AdminReportsController {
         throw new BadRequestException('Unknown report');
     }
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="haat-${name}-${r.from}-to-${r.to}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="tuktakbazaar-${name}-${r.from}-to-${r.to}.csv"`);
     res.setHeader('Cache-Control', 'no-store');
     res.send(body);
   }

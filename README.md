@@ -1,4 +1,4 @@
-# Haat — single-vendor e-commerce for Bangladesh
+# Tuktak Bazaar — single-vendor e-commerce for Bangladesh
 
 A complete online store with Daraz-style shopping features, built for one seller:
 flash sales, collectible vouchers, coins, photo reviews, product Q&A, returns,
@@ -10,8 +10,8 @@ with Steadfast, Pathao and RedX, sales reports with CSV export, Excel catalog im
 bulk price and stock edits, price-drop and back-in-stock alerts, abandoned-cart reminders
 by SMS, and customer support tickets.
 
-"Haat" (হাট) is a placeholder brand. Change it in **Admin → Settings → Store name**
-(and the wordmark in `apps/web/components/store/logo.tsx`).
+The store is called **Tuktak Bazaar** (টুকটাক বাজার) and will live at tuktakbazaar.com. The name customers see
+comes from **Admin → Settings → Store name**; the Bangla wordmark is in `apps/web/components/store/logo.tsx`.
 
 ## Stack
 
@@ -20,7 +20,7 @@ by SMS, and customer support tickets.
 | API | NestJS 11, Prisma 6, PostgreSQL 16 (with `pg_trgm` for fuzzy search) |
 | Web | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
 | Jobs | `@nestjs/schedule` inside the API (unpaid orders, payments, alerts, cart reminders, courier status) |
-| Tests | `apps/api/test/e2e.ts` — 113 checks over checkout, payments, stock races, returns, staff permissions, couriers, reports, imports, alerts and support |
+| Tests | `apps/api/test/e2e.ts` — 124 checks over checkout, payments, stock races, returns, staff permissions, couriers, reports, imports, alerts and support |
 
 ```
 haat/
@@ -53,7 +53,7 @@ Open http://localhost:3000.
 | Who | Login | Password |
 | --- | --- | --- |
 | Customer (has orders, coins, vouchers, support requests) | `01711111111` | `customer123` |
-| Owner (open `/admin`) | `admin@haat.local` or `01700000000` | `admin1234` |
+| Owner (open `/admin`) | `admin@tuktakbazaar.local` or `01700000000` | `admin1234` |
 | Staff: orders and support | `01700000001` | `staff1234` |
 | Staff: catalog and marketing | `01700000002` | `staff1234` |
 

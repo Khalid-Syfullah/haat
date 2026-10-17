@@ -61,7 +61,7 @@ const REVIEW_TEXT: Record<'tech' | 'fashion' | 'home' | 'beauty' | 'sports', [nu
     [5, 'Valo product. Sound and display both great for this price.'],
     [4, 'Took 4 days to reach Sylhet but packaging was very safe.'],
     [3, 'Works fine but the box was a bit damaged on arrival.'],
-    [5, 'Second time buying from Haat. Genuine warranty card included.'],
+    [5, 'Second time buying from Tuktak Bazaar. Genuine warranty card included.'],
   ],
   fashion: [
     [5, 'Fabric quality is really nice and the stitching is neat. Fits perfectly.'],
@@ -125,7 +125,7 @@ async function wipe() {
 }
 
 async function main() {
-  console.log('Seeding Haat demo store…');
+  console.log('Seeding Tuktak Bazaar demo store…');
   await wipe();
 
   // ───── Categories ─────
@@ -242,7 +242,7 @@ async function main() {
     data: {
       name: 'Store Admin',
       phone: '01700000000',
-      email: 'admin@haat.local',
+      email: 'admin@tuktakbazaar.local',
       passwordHash: await hash('admin1234', 10),
       role: 'ADMIN',
       cart: { create: {} },
@@ -269,7 +269,7 @@ async function main() {
 
   // ───── Delivered orders with reviews ─────
   let orderSeq = 1000;
-  const orderNo = () => `HT${String(250900 + Math.floor(orderSeq / 40)).slice(0, 6)}${String(4000000 + orderSeq++)}`;
+  const orderNo = () => `TB${String(250900 + Math.floor(orderSeq / 40)).slice(0, 6)}${String(4000000 + orderSeq++)}`;
   const zoneFor = (district: string) =>
     district === 'Dhaka' ? 'INSIDE_DHAKA' : ['Gazipur', 'Narayanganj', 'Narsingdi', 'Munshiganj', 'Manikganj'].includes(district) ? 'DHAKA_SUBURBS' : 'OUTSIDE_DHAKA';
   const feeFor = (zone: string) => (zone === 'INSIDE_DHAKA' ? 60 : zone === 'DHAKA_SUBURBS' ? 100 : 120);
@@ -367,7 +367,7 @@ async function main() {
           rating,
           comment,
           createdAt: at(between(50, 200)),
-          reply: rating <= 3 ? 'Thanks for the honest feedback. We have shared it with our quality team.' : rand() < 0.3 ? 'Thank you for shopping with Haat!' : null,
+          reply: rating <= 3 ? 'Thanks for the honest feedback. We have shared it with our quality team.' : rand() < 0.3 ? 'Thank you for shopping with Tuktak Bazaar!' : null,
           repliedAt: rating <= 3 ? at(220) : null,
         },
       });
@@ -658,10 +658,10 @@ async function main() {
   // ───── Staff ─────
   const staffHash = await hash('staff1234', 10);
   const rafi = await prisma.user.create({
-    data: { name: 'Rafi Ahmed', phone: '01700000001', email: 'rafi@haat.local', passwordHash: staffHash, role: 'STAFF', permissions: ['ORDERS', 'SUPPORT'], cart: { create: {} } },
+    data: { name: 'Rafi Ahmed', phone: '01700000001', email: 'rafi@tuktakbazaar.local', passwordHash: staffHash, role: 'STAFF', permissions: ['ORDERS', 'SUPPORT'], cart: { create: {} } },
   });
   await prisma.user.create({
-    data: { name: 'Nusrat Jahan', phone: '01700000002', email: 'nusrat@haat.local', passwordHash: staffHash, role: 'STAFF', permissions: ['CATALOG', 'MARKETING'], cart: { create: {} } },
+    data: { name: 'Nusrat Jahan', phone: '01700000002', email: 'nusrat@tuktakbazaar.local', passwordHash: staffHash, role: 'STAFF', permissions: ['CATALOG', 'MARKETING'], cart: { create: {} } },
   });
 
   // ───── Support tickets ─────
@@ -726,7 +726,7 @@ async function main() {
   });
 
   console.log('\nDone. Log in with:');
-  console.log('  Admin     01700000000 / admin1234   (or admin@haat.local)');
+  console.log('  Admin     01700000000 / admin1234   (or admin@tuktakbazaar.local)');
   console.log('  Staff     01700000001 / staff1234   (orders and support)');
   console.log('            01700000002 / staff1234   (catalog and marketing)');
   console.log('  Customer  01711111111 / customer123');

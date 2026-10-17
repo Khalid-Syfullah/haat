@@ -75,7 +75,7 @@ export default async function ReturnsPage() {
                       {tk(r.refundAmount)} {r.refundMethod === 'COINS' ? 'added as coins' : 'refunded to your payment method'}
                     </p>
                   )}
-                  {r.adminNote && <p className="mt-1 text-sm text-ink-soft">Note from Haat: {r.adminNote}</p>}
+                  {r.adminNote && <p className="mt-1 text-sm text-ink-soft">Note from Tuktak Bazaar: {r.adminNote}</p>}
                 </div>
               </div>
             </li>

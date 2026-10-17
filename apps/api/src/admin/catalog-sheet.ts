@@ -96,7 +96,7 @@ export async function exportWorkbook(prisma: PrismaService): Promise<Buffer> {
     },
   });
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Haat';
+  wb.creator = 'Tuktak Bazaar';
   const ws = wb.addWorksheet('Products');
   ws.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
   for (const p of products) {
@@ -139,7 +139,7 @@ export async function exportWorkbook(prisma: PrismaService): Promise<Buffer> {
 
 export async function templateWorkbook(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Haat';
+  wb.creator = 'Tuktak Bazaar';
   const ws = wb.addWorksheet('Products');
   ws.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
   const base = {

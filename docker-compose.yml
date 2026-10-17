@@ -6,15 +6,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: haat
-      POSTGRES_PASSWORD: haat
-      POSTGRES_DB: haat
+      POSTGRES_USER: tuktakbazaar
+      POSTGRES_PASSWORD: tuktakbazaar
+      POSTGRES_DB: tuktakbazaar
     ports:
       - "5432:5432"
     volumes:
-      - haat-db:/var/lib/postgresql/data
+      - tuktakbazaar-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U haat"]
+      test: ["CMD-SHELL", "pg_isready -U tuktakbazaar"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -29,7 +29,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://haat:haat@db:5432/haat?schema=public
+      DATABASE_URL: postgresql://tuktakbazaar:tuktakbazaar@db:5432/tuktakbazaar?schema=public
       PORT: 4000
       WEB_URL: http://localhost:3000
       API_PUBLIC_URL: http://localhost:4000
@@ -40,7 +40,7 @@ services:
       SSLCZ_SANDBOX: ${SSLCZ_SANDBOX:-true}
       UPLOAD_DIR: /app/apps/api/uploads
     volumes:
-      - haat-uploads:/app/apps/api/uploads
+      - tuktakbazaar-uploads:/app/apps/api/uploads
     ports:
       - "4000:4000"
 
@@ -58,5 +58,5 @@ services:
       - "3000:3000"
 
 volumes:
-  haat-db:
-  haat-uploads:
+  tuktakbazaar-db:
+  tuktakbazaar-uploads:

@@ -1,13 +1,18 @@
 # Deployment
 
-Haat runs on one EC2 instance (t4g.small, Ubuntu 24.04, ap-southeast-2) behind nginx at
+Tuktak Bazaar runs on one EC2 instance (t4g.small, Ubuntu 24.04, ap-southeast-2) behind nginx at
 https://production.khalidsyfullah.com. PostgreSQL 16 runs on the same machine.
+
+The server-side names still say `haat` (`/var/www/haat`, the `haat-api` and `haat-web` pm2 apps,
+the `haat` database, the `haat-deploy` command, the `haat-github-deploy` role and this repository).
+They are internal and were kept on purpose when the store was renamed, so nothing on the running
+server had to move.
 
 ## How a deploy works
 
 1. Push or merge to `main` (or run **Deploy** by hand from the Actions tab on `main`).
 2. `deploy.yml` runs the CI workflow first: type-check, both builds, migrations, seed and the
-   45 end-to-end checks against a throwaway Postgres. If CI fails, nothing is deployed.
+   end-to-end checks against a throwaway Postgres. If CI fails, nothing is deployed.
 3. It assumes the AWS role `haat-github-deploy` through GitHub OIDC (no stored keys), which
    may only send a shell command to this one instance.
 4. On the instance, `/usr/local/bin/haat-deploy <sha>` fetches the repo and runs

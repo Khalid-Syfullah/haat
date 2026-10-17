@@ -39,7 +39,7 @@ export function StoreFooter({ categories, store }: { categories: CategoryNode[];
             <li><Link href="/account/orders" className="hover:text-white">Track an order</Link></li>
             <li><Link href="/account/returns" className="hover:text-white">Returns and refunds</Link></li>
             <li><Link href="/vouchers" className="hover:text-white">Vouchers</Link></li>
-            <li><Link href="/account/coins" className="hover:text-white">Haat coins</Link></li>
+            <li><Link href="/account/coins" className="hover:text-white">Tuktak coins</Link></li>
           </ul>
         </div>
         <div>

@@ -32,7 +32,7 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT || 4000);
   await app.listen(port);
-  console.log(`Haat API listening on http://localhost:${port}/api`);
+  console.log(`Tuktak Bazaar API listening on http://localhost:${port}/api`);
 }
 
 bootstrap();

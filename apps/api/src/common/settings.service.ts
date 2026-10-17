@@ -8,10 +8,10 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 export const DEFAULT_SETTINGS = {
   store: {
-    name: 'Haat',
+    name: 'Tuktak Bazaar',
     tagline: 'Everything you need, delivered across Bangladesh',
     supportPhone: '09600-000000',
-    supportEmail: 'support@haat.example',
+    supportEmail: 'support@tuktakbazaar.com',
   },
   delivery: {
     zones: {

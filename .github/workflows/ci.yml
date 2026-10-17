@@ -13,14 +13,14 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: haat
-          POSTGRES_PASSWORD: haat
-          POSTGRES_DB: haat
+          POSTGRES_USER: tuktakbazaar
+          POSTGRES_PASSWORD: tuktakbazaar
+          POSTGRES_DB: tuktakbazaar
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U haat" --health-interval 5s --health-timeout 3s --health-retries 10
+          --health-cmd "pg_isready -U tuktakbazaar" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgresql://haat:haat@localhost:5432/haat?schema=public
+      DATABASE_URL: postgresql://tuktakbazaar:tuktakbazaar@localhost:5432/tuktakbazaar?schema=public
       JWT_SECRET: ci-secret
       PAYMENT_PROVIDER: mock
       WEB_URL: http://localhost:3000

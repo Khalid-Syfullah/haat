@@ -109,7 +109,7 @@ export class AuthController {
       data: { phone, codeHash: hashOtp(phone, code), expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
     });
     const consoleMode = this.sms.provider === 'console';
-    const sms = await this.sms.send(phone, `Your Haat login code is ${code}. It expires in 5 minutes. Never share it.`, 'otp');
+    const sms = await this.sms.send(phone, `Your Tuktak Bazaar login code is ${code}. It expires in 5 minutes. Never share it.`, 'otp');
     if (!sms.ok) {
       // The code never reached the phone, so it shouldn't count towards the 3-per-10-minutes limit.
       await this.prisma.otpCode.delete({ where: { id: otp.id } });
@@ -136,7 +136,7 @@ export class AuthController {
     await this.prisma.otpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
     let user = await this.prisma.user.findUnique({ where: { phone } });
     if (!user) {
-      user = await this.prisma.user.create({ data: { phone, name: dto.name?.trim() || 'Haat customer', cart: { create: {} } } });
+      user = await this.prisma.user.create({ data: { phone, name: dto.name?.trim() || 'Tuktak Bazaar customer', cart: { create: {} } } });
     }
     if (!user.isActive) throw new UnauthorizedException('This account is disabled');
     return this.signIn(res, user);

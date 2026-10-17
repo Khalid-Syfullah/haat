@@ -12,13 +12,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-md px-4 py-10">
       <div className="rounded-xl border border-line bg-white p-6 sm:p-8">
-        <h1 className="text-2xl font-bold">Log in to Haat</h1>
+        <h1 className="text-2xl font-bold">Log in to Tuktak Bazaar</h1>
         <p className="mb-6 mt-1 text-ink-soft">Track orders, use vouchers and earn coins.</p>
         <Suspense>
           <LoginForm />
         </Suspense>
       </div>
-      <p className="mt-4 text-center text-sm text-ink-faint">Demo logins: customer 01711111111 / customer123, admin admin@haat.local / admin1234</p>
+      <p className="mt-4 text-center text-sm text-ink-faint">Demo logins: customer 01711111111 / customer123, admin admin@tuktakbazaar.local / admin1234</p>
     </div>
   );
 }

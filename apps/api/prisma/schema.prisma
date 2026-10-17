@@ -1,4 +1,4 @@
-// Haat — single-vendor e-commerce schema.
+// Tuktak Bazaar — single-vendor e-commerce schema.
 // Money is stored as whole taka (Int). Orders snapshot prices and addresses.
 
 generator client {

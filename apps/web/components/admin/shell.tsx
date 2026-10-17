@@ -31,6 +31,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useState } from 'react';
 import { post } from '@/lib/api';
 import type { Permission } from '@/lib/server';
+import { BRAND_BN } from '@/components/store/logo';
 
 /** `perm` is the staff permission a link needs; OWNER links are for store owners only. */
 type NavItem = { href: string; label: string; icon: typeof Package; perm?: Permission | 'OWNER' };
@@ -126,9 +127,9 @@ export function AdminShell({
         )}
       >
         <div className="flex h-14 items-center justify-between border-b border-white/10 px-5">
-          <Link href="/admin" className="flex items-baseline gap-2 text-white">
-            <span className="font-brand text-2xl leading-none">হাট</span>
-            <span className="text-sm font-semibold text-white/70">{storeName} admin</span>
+          <Link href="/admin" className="flex items-baseline gap-2 whitespace-nowrap text-white" aria-label={`${storeName} admin home`}>
+            <span className="font-brand text-xl leading-none">{BRAND_BN}</span>
+            <span className="text-sm font-semibold text-white/70">admin</span>
           </Link>
           <button className="text-white/70 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
             <X className="size-5" />

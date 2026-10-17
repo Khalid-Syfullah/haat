@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds one commit of Haat into a new release, migrates the database, moves traffic to it
+# Builds one commit of Tuktak Bazaar into a new release, migrates the database, moves traffic to it
 # and health-checks it. If the check fails, the previous release is put back.
 #
 # Runs on the server as the app user (ubuntu). The /usr/local/bin/haat-deploy wrapper

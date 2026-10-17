@@ -11,7 +11,7 @@ interface StoreInfo {
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {
   const [categories, info] = await Promise.all([serverApi<CategoryNode[]>('/categories'), serverApi<StoreInfo>('/store')]);
-  const store = info?.store ?? { name: 'Haat', tagline: '', supportPhone: '', supportEmail: '' };
+  const store = info?.store ?? { name: 'Tuktak Bazaar', tagline: '', supportPhone: '', supportEmail: '' };
   return (
     <>
       <StoreHeader categories={categories ?? []} supportPhone={store.supportPhone} freeShippingThreshold={info?.freeShippingThreshold ?? 2000} />

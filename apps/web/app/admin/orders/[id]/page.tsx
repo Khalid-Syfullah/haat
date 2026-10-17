@@ -374,7 +374,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <PackingSlip order={o} storeName={store?.store.name ?? 'Haat'} supportPhone={store?.store.supportPhone ?? ''} />
+      <PackingSlip order={o} storeName={store?.store.name ?? 'Tuktak Bazaar'} supportPhone={store?.store.supportPhone ?? ''} />
     </>
   );
 }

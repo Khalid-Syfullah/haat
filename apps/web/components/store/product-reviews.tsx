@@ -111,7 +111,7 @@ export function ProductReviews({ slug, initial }: { slug: string; initial: Revie
                 )}
                 {r.reply && (
                   <div className="mt-2 max-w-3xl rounded-md bg-paper px-3 py-2 text-sm">
-                    <span className="font-semibold text-padma">Reply from Haat: </span>
+                    <span className="font-semibold text-padma">Reply from Tuktak Bazaar: </span>
                     {r.reply}
                   </div>
                 )}
@@ -206,7 +206,7 @@ export function ProductQuestions({ slug, initial }: { slug: string; initial: Que
             </p>
             {q.answer ? (
               <p className="ml-7 mt-1 text-ink-soft">
-                <span className="font-semibold text-ink">Haat: </span>
+                <span className="font-semibold text-ink">Tuktak Bazaar: </span>
                 {q.answer}
               </p>
             ) : (
