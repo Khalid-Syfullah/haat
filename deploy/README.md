@@ -4,9 +4,8 @@ Tuktak Bazaar runs on one EC2 instance (t4g.small, Ubuntu 24.04, ap-southeast-2)
 https://production.khalidsyfullah.com. PostgreSQL 16 runs on the same machine.
 
 The server-side names still say `haat` (`/var/www/haat`, the `haat-api` and `haat-web` pm2 apps,
-the `haat` database, the `haat-deploy` command, the `haat-github-deploy` role and this repository).
-They are internal and were kept on purpose when the store was renamed, so nothing on the running
-server had to move.
+the `haat` database, the `haat-deploy` command and the `haat-github-deploy` role). They are internal
+and were kept on purpose when the store was renamed, so nothing on the running server had to move.
 
 ## How a deploy works
 
@@ -81,7 +80,9 @@ sudo -u ubuntu -H haat-deploy <older-sha>
 4. AWS: the GitHub OIDC provider already exists in account 312605974340. The role
    `haat-github-deploy` uses `deploy/iam/trust-policy.json` (both the name and the numeric-ID
    form of the subject claim, since GitHub may send either) and `deploy/iam/permissions-policy.json`
-   as its inline policy.
+   as its inline policy. The subject names the repository, so renaming the repository means
+   updating this trust policy, or deploys stop at the AWS sign-in step. Never leave the old name
+   in it: anyone who later creates a repository with that name could then deploy.
 5. GitHub: the `production` environment is created by the first deploy. The workflow only
    deploys from `main`; for a second guard, set Settings > Environments > `production` >
    Deployment branches to `main`.

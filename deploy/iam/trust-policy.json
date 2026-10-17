@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "GitHubActionsHaatProduction",
+      "Sid": "GitHubActionsTuktakBazaarProduction",
       "Effect": "Allow",
       "Principal": {
         "Federated": "arn:aws:iam::312605974340:oidc-provider/token.actions.githubusercontent.com"
@@ -12,8 +12,8 @@
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub": [
-            "repo:Khalid-Syfullah/haat:environment:production",
-            "repo:Khalid-Syfullah@8851114/haat@1422048675:environment:production"
+            "repo:Khalid-Syfullah/tuktak-bazaar:environment:production",
+            "repo:Khalid-Syfullah@8851114/tuktak-bazaar@1422048675:environment:production"
           ]
         }
       }

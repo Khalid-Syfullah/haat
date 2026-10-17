@@ -7,7 +7,7 @@ set -euo pipefail
 APP=/var/www/haat
 APP_USER=ubuntu
 DOMAIN=production.khalidsyfullah.com
-REPO=https://github.com/Khalid-Syfullah/haat.git
+REPO=https://github.com/Khalid-Syfullah/tuktak-bazaar.git
 
 # Node 20.9+ and pm2 run the apps. Install Node yourself (e.g. NodeSource 22.x) if it's missing.
 NODE_OK=$(node -p 'const [a, b] = process.versions.node.split(".").map(Number); a > 20 || (a === 20 && b >= 9) ? 1 : 0' 2>/dev/null || echo 0)
