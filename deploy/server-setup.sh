@@ -6,7 +6,7 @@ set -euo pipefail
 
 APP=/var/www/haat
 APP_USER=ubuntu
-DOMAIN=production.khalidsyfullah.com
+DOMAIN=tuktakbazaar.com
 REPO=https://github.com/Khalid-Syfullah/tuktak-bazaar.git
 
 # Node 20.9+ and pm2 run the apps. Install Node yourself (e.g. NodeSource 22.x) if it's missing.

@@ -27,14 +27,14 @@ jobs:
     timeout-minutes: 40
     environment:
       name: production
-      url: https://production.khalidsyfullah.com
+      url: https://tuktakbazaar.com
     permissions:
       id-token: write
       contents: read
     env:
       AWS_REGION: ap-southeast-2
       INSTANCE_ID: i-06b375f9360b2a8b4
-      SITE: https://production.khalidsyfullah.com
+      SITE: https://tuktakbazaar.com
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
