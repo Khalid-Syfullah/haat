@@ -23,7 +23,7 @@ comes from **Admin → Settings → Store name**; the Bangla wordmark is in `app
 | Tests | `apps/api/test/e2e.ts` — 124 checks over checkout, payments, stock races, returns, staff permissions, couriers, reports, imports, alerts and support |
 
 ```
-haat/
+tuktak-bazaar/
 ├─ apps/api        NestJS API  (port 4000, everything under /api)
 │  ├─ prisma/      schema, migration, seed data and generated demo images
 │  ├─ src/         feature folders: auth, catalog, cart, checkout, orders, payments, aftersale, admin …
