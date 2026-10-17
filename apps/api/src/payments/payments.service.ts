@@ -75,7 +75,7 @@ export class PaymentsService {
         ipnUrl: this.apiUrl('/payments/sslcommerz/ipn'),
         customer: {
           name: order.shipName,
-          email: order.user.email || `${order.shipPhone}@customers.haat.example`,
+          email: order.user.email || `${order.shipPhone}@customers.tuktakbazaar.example`,
           phone: order.shipPhone,
           address: `${order.shipLine}, ${order.shipArea}`,
           city: order.shipDistrict,

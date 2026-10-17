@@ -252,7 +252,7 @@ function RefundDialog({
         >
           <Select value={method} onChange={(e) => setMethod(e.target.value as 'ORIGINAL' | 'COINS')}>
             <option value="ORIGINAL">Original payment method ({paymentLabel(r.order.paymentMethod)})</option>
-            <option value="COINS">Haat coins</option>
+            <option value="COINS">Tuktak coins</option>
           </Select>
         </Field>
         <Field label="Note (optional)" hint="For example the bKash transaction ID.">

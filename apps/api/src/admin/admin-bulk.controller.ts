@@ -36,7 +36,7 @@ export class AdminBulkController {
   async export(@Res() res: Response) {
     const buf = await exportWorkbook(this.prisma);
     res.setHeader('Content-Type', XLSX);
-    res.setHeader('Content-Disposition', `attachment; filename="haat-catalog-${dhakaDay()}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="tuktakbazaar-catalog-${dhakaDay()}.xlsx"`);
     res.setHeader('Cache-Control', 'no-store');
     res.send(buf);
   }
@@ -45,7 +45,7 @@ export class AdminBulkController {
   async template(@Res() res: Response) {
     const buf = await templateWorkbook();
     res.setHeader('Content-Type', XLSX);
-    res.setHeader('Content-Disposition', 'attachment; filename="haat-catalog-template.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="tuktakbazaar-catalog-template.xlsx"');
     res.send(buf);
   }
 

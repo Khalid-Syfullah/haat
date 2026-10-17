@@ -41,7 +41,7 @@ export function LoginForm() {
       </div>
       {mode === 'password' ? <PasswordLogin /> : <OtpLogin />}
       <p className="mt-6 text-center text-[15px] text-ink-soft">
-        New to Haat?{' '}
+        New to Tuktak Bazaar?{' '}
         <Link href={`/register${params.get('next') ? `?next=${encodeURIComponent(params.get('next')!)}` : ''}`} className="font-semibold text-padma hover:underline">
           Create an account
         </Link>

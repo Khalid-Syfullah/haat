@@ -78,7 +78,7 @@ export default async function ReviewsPage() {
                   {r.comment && <p className="mt-1">{r.comment}</p>}
                   {r.reply && (
                     <p className="mt-1 rounded bg-paper px-2 py-1 text-sm">
-                      <span className="font-semibold text-padma">Haat replied: </span>
+                      <span className="font-semibold text-padma">Tuktak Bazaar replied: </span>
                       {r.reply}
                     </p>
                   )}

@@ -58,7 +58,7 @@ export class SmsService {
     const token = process.env.SSL_SMS_API_TOKEN;
     const sid = process.env.SSL_SMS_SID;
     if (!token || !sid) return { result: { ok: false, status: 'failed', error: 'SSL_SMS_API_TOKEN or SSL_SMS_SID is not set' } };
-    const csmsId = `haat${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
+    const csmsId = `tb${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
     try {
       const res = await fetch(process.env.SSL_SMS_URL || 'https://smsplus.sslwireless.com/api/v3/send-sms', {
         method: 'POST',

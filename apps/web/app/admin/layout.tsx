@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { AdminShell } from '@/components/admin/shell';
 import { getMe, serverApi } from '@/lib/server';
 
-export const metadata: Metadata = { title: { default: 'Admin', template: '%s | Haat admin' }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: 'Admin', template: '%s | Tuktak Bazaar admin' }, robots: { index: false } };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
@@ -13,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <AdminShell
       name={me.user.name}
-      storeName={store?.store.name ?? 'Haat'}
+      storeName={store?.store.name ?? 'Tuktak Bazaar'}
       owner={me.user.role === 'ADMIN'}
       permissions={me.user.permissions}
     >

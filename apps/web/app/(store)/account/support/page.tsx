@@ -17,7 +17,7 @@ export default async function SupportPage() {
   const rows = tickets ?? [];
   const replied = rows.filter((t) => t.status === 'PENDING').length;
   const phone = info?.store.supportPhone;
-  const store = info?.store.name ?? 'Haat';
+  const store = info?.store.name ?? 'Tuktak Bazaar';
 
   return (
     <div className="space-y-4">

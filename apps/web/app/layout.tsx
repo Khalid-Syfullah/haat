@@ -4,7 +4,7 @@ import { getMe } from '@/lib/server';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Haat — Shop online in Bangladesh', template: '%s | Haat' },
+  title: { default: 'Tuktak Bazaar — Shop online in Bangladesh', template: '%s | Tuktak Bazaar' },
   description: 'Phones, fashion, home and beauty delivered across all 64 districts. Cash on delivery, bKash and Nagad.',
 };
 

@@ -13,7 +13,7 @@ import { Permission, Role } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
-export const AUTH_COOKIE = 'haat_token';
+export const AUTH_COOKIE = 'tuktak_token';
 
 export interface AuthUser {
   id: string;

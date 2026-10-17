@@ -11,7 +11,7 @@ import { Button, Modal, Textarea } from '../ui';
 import { PhotoPicker } from './order-actions';
 import type { SupportMessage, TicketStatus } from './support-bits';
 
-/** Chat-style thread: the customer on the right, Haat support on the left. */
+/** Chat-style thread: the customer on the right, Tuktak Bazaar support on the left. */
 export function SupportMessages({ messages }: { messages: SupportMessage[] }) {
   const [photo, setPhoto] = useState<string | null>(null);
   return (

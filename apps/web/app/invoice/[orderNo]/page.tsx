@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { PrintButton } from '@/components/store/print-button';
 import { dateTime, PAYMENT_LABEL, PAYMENT_STATUS_LABEL, tk } from '@/lib/format';
 import { mustGet, requireUser, serverApi } from '@/lib/server';
+import { BRAND_BN } from '@/components/store/logo';
 
 type Props = { params: Promise<{ orderNo: string }> };
 
@@ -43,8 +44,8 @@ export default async function InvoicePage({ params }: Props) {
     <div className="mx-auto max-w-3xl bg-white p-8 text-ink print:p-0">
       <div className="flex items-start justify-between border-b-2 border-padma pb-4">
         <div>
-          <p className="font-brand text-4xl leading-none text-padma">হাট</p>
-          <p className="mt-1 text-lg font-bold">{store?.store.name ?? 'Haat'}</p>
+          <p className="font-brand text-4xl leading-none text-padma">{BRAND_BN}</p>
+          <p className="mt-1 text-lg font-bold">{store?.store.name ?? 'Tuktak Bazaar'}</p>
           <p className="text-sm text-ink-soft">
             {store?.store.supportPhone}, {store?.store.supportEmail}
           </p>
@@ -110,7 +111,7 @@ export default async function InvoicePage({ params }: Props) {
           <dd>{tk(o.total)}</dd>
         </div>
       </dl>
-      <p className="mt-10 text-center text-xs text-ink-faint">Prices include VAT. Thank you for shopping with {store?.store.name ?? 'Haat'}.</p>
+      <p className="mt-10 text-center text-xs text-ink-faint">Prices include VAT. Thank you for shopping with {store?.store.name ?? 'Tuktak Bazaar'}.</p>
     </div>
   );
 }

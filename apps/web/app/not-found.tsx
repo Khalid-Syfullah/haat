@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { BRAND_BN } from '@/components/store/logo';
 
 export default function NotFound() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
-      <p className="font-brand text-6xl text-padma">হাট</p>
+      <p className="font-brand text-5xl text-padma sm:text-6xl">{BRAND_BN}</p>
       <h1 className="mt-4 text-2xl font-bold">We couldn't find that page</h1>
       <p className="mt-1 max-w-sm text-ink-soft">The product may have sold out or the link may be wrong. Try searching instead.</p>
       <div className="mt-6 flex gap-3">

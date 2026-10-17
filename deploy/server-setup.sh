@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time preparation of the EC2 instance for Haat. Safe to re-run: it never overwrites the
+# One-time preparation of the EC2 instance for Tuktak Bazaar. Safe to re-run: it never overwrites the
 # database password, JWT secret or other values already in shared/api.env.
 # Run as root:  sudo bash deploy/server-setup.sh
 set -euo pipefail
@@ -80,7 +80,7 @@ bash "$SCRIPT" "$SHA"
 EOF
 chmod 755 /usr/local/bin/haat-deploy
 
-# Start pm2 (and so Haat) again after a reboot
+# Start pm2 (and so Tuktak Bazaar) again after a reboot
 if ! systemctl is-enabled "pm2-$APP_USER" >/dev/null 2>&1; then
   env PATH="$PATH:/usr/bin" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" >/dev/null
 fi

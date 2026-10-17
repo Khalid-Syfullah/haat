@@ -44,10 +44,10 @@ export function slugify(input: string): string {
   return base || `item-${randomBytes(3).toString('hex')}`;
 }
 
-/** e.g. HT2610161234567 — prefix, Dhaka date, random digits. */
+/** e.g. TB2610161234567 — prefix, Dhaka date, random digits. */
 export function generateOrderNo(): string {
   const day = dhakaDay().replace(/-/g, '').slice(2);
-  return `HT${day}${randomInt(1000000, 9999999)}`;
+  return `TB${day}${randomInt(1000000, 9999999)}`;
 }
 
 export function randomToken(bytes = 24): string {

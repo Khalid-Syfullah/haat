@@ -1,7 +1,7 @@
 {
-  "name": "haat",
+  "name": "tuktakbazaar",
   "private": true,
-  "description": "Haat — a single-vendor e-commerce platform for Bangladesh with Daraz-style features",
+  "description": "Tuktak Bazaar — a single-vendor e-commerce platform for Bangladesh with Daraz-style features",
   "workspaces": [
     "apps/*"
   ],
