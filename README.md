@@ -1,6 +1,6 @@
-# Haat — single-vendor e-commerce for Bangladesh
+# Tuktak Bazaar — single-vendor e-commerce for Bangladesh
 
-A complete online store with Daraz-style shopping features, built for one seller:
+A complete online store with shopping features, built for one seller:
 flash sales, collectible vouchers, coins, photo reviews, product Q&A, returns,
 cash on delivery with refusal-risk scoring, bKash / Nagad / card payments through
 SSLCommerz, Bangla and Banglish search, and an admin panel that runs it all.
