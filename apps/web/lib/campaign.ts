@@ -45,6 +45,8 @@ export interface CampaignView {
   voucher: { id: string; title: string; label: string; minSpend: number } | null;
   game: { style: GameStyle; rewards: CampaignReward[] } | null;
   deals: CampaignDeal[];
+  /** When this answer next changes (start, a flash sale behind the deals starting or ending, the end…). */
+  refreshAt: string;
 }
 
 export interface CurrentCampaign {

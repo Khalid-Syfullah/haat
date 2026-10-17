@@ -86,6 +86,12 @@ export interface CampaignView {
   voucher: { id: string; title: string; label: string; minSpend: number } | null;
   game: { style: GameStyle; rewards: { id: string; kind: RewardKind; label: string; odds: number; sortOrder: number }[] } | null;
   deals: CampaignDeal[];
+  /**
+   * When this answer next changes: the start (during the teaser), a flash sale behind the deals starting or
+   * ending, the banner voucher starting or ending, a reward voucher expiring, a higher-priority campaign's
+   * teaser starting, or the end. Open pages fetch the campaign again at this moment.
+   */
+  refreshAt: Date;
 }
 
 export interface RewardResult {
@@ -151,13 +157,17 @@ export class CampaignsService {
       orderBy: [{ priority: 'desc' }, { startsAt: 'asc' }],
       include: FULL_INCLUDE,
     });
-    const pick = candidates.find((c) => now.getTime() >= c.startsAt.getTime() - c.teaserHours * HOUR);
-    return pick ? this.view(toInput(pick), now) : null;
+    const teaserStart = (c: (typeof candidates)[number]) => new Date(c.startsAt.getTime() - c.teaserHours * HOUR);
+    const index = candidates.findIndex((c) => teaserStart(c) <= now);
+    if (index < 0) return null;
+    // A higher-priority campaign whose teaser hasn't started yet takes over when it does.
+    const takeovers = candidates.slice(0, index).map(teaserStart);
+    return this.view(toInput(candidates[index]), now, takeovers);
   }
 
-  async view(c: CampaignInput, now = new Date()): Promise<CampaignView> {
+  async view(c: CampaignInput, now = new Date(), changesAt: Date[] = []): Promise<CampaignView> {
     const rewardVoucherIds = [...new Set(c.rewards.flatMap((r) => (r.kind === 'VOUCHER' && r.voucherId ? [r.voucherId] : [])))];
-    const [voucher, deals, rewardVouchers] = await Promise.all([
+    const [voucher, { deals, changes }, rewardVouchers] = await Promise.all([
       c.voucherId ? this.prisma.voucher.findUnique({ where: { id: c.voucherId } }) : null,
       this.deals(c, now),
       rewardVoucherIds.length ? this.prisma.voucher.findMany({ where: { id: { in: rewardVoucherIds } } }) : [],
@@ -172,6 +182,14 @@ export class CampaignsService {
     const totalWeight = c.rewards.reduce((s, r) => s + (available.has(r.id) ? r.weight : 0), 0);
     const maxPct = deals.reduce((m, d) => Math.max(m, d.discountPct), 0);
     const voucherOk = collectible(voucher, now);
+    const refreshAt = [
+      c.startsAt,
+      voucher?.startsAt,
+      voucher?.endsAt,
+      ...rewardVouchers.map((v) => v.endsAt),
+      ...changes,
+      ...changesAt,
+    ].reduce<Date>((soonest, d) => (d && d > now && d < soonest ? d : soonest), c.endsAt);
     return {
       id: c.id,
       slug: c.slug,
@@ -201,20 +219,24 @@ export class CampaignsService {
             }
           : null,
       deals,
+      refreshAt,
     };
   }
 
   /**
    * Flash-sale items first (best sellers first), then hand-picked variants. Hidden products are skipped.
    * Flash prices only count while that flash sale is running; before or after it, its items show at their current price.
+   * Also returns when those prices next change (a flash sale behind them starting or ending).
    */
-  private async deals(c: Pick<CampaignInput, 'flashSaleId' | 'productIds'>, now: Date): Promise<CampaignDeal[]> {
+  private async deals(c: Pick<CampaignInput, 'flashSaleId' | 'productIds'>, now: Date): Promise<{ deals: CampaignDeal[]; changes: Date[] }> {
     const out: CampaignDeal[] = [];
+    const changes: Date[] = [];
     const seen = new Set<string>();
     const variantInclude = { product: { include: { images: { orderBy: { sortOrder: 'asc' as const }, take: 1 } } } };
     let productIds = c.productIds;
     const sale = c.flashSaleId ? await this.prisma.flashSale.findUnique({ where: { id: c.flashSaleId } }) : null;
     const saleLive = !!sale && sale.isActive && sale.startsAt <= now && now < sale.endsAt;
+    if (sale?.isActive) changes.push(sale.startsAt, sale.endsAt);
     if (sale && !saleLive) {
       const ids = await this.prisma.flashSaleItem.findMany({ where: { flashSaleId: sale.id }, orderBy: { soldQty: 'desc' }, select: { variantId: true } });
       productIds = [...ids.map((i) => i.variantId), ...productIds.filter((id) => !ids.some((i) => i.variantId === id))];
@@ -248,7 +270,15 @@ export class CampaignsService {
         where: { id: { in: ids }, isActive: true, product: { status: 'ACTIVE' } },
         include: variantInclude,
       });
-      const flash = await this.pricing.activeFlash(variants.map((v) => v.id));
+      const [flash, sales] = await Promise.all([
+        this.pricing.activeFlash(variants.map((v) => v.id)),
+        // Any flash sale on these items changes their price when it starts or ends.
+        this.prisma.flashSaleItem.findMany({
+          where: { variantId: { in: variants.map((v) => v.id) }, flashSale: { isActive: true, endsAt: { gt: now } } },
+          select: { flashSale: { select: { startsAt: true, endsAt: true } } },
+        }),
+      ]);
+      for (const s of sales) changes.push(s.flashSale.startsAt, s.flashSale.endsAt);
       for (const id of ids) {
         const v = variants.find((x) => x.id === id);
         if (!v || out.length >= MAX_DEALS) continue;
@@ -266,7 +296,7 @@ export class CampaignsService {
         });
       }
     }
-    return out;
+    return { deals: out, changes };
   }
 
   // ───── The shopper's own state and the daily game ─────
@@ -330,9 +360,10 @@ export class CampaignsService {
           const total = pool.reduce((s, r) => s + r.weight, 0);
           let roll = Math.random() * total;
           const r = pool.find((x) => (roll -= x.weight) < 0) ?? pool[pool.length - 1];
-          // Conditional increment: under concurrency only as many plays as the stock allows can win it.
+          // Conditional increment: under concurrency only as many plays as the stock allows can win it, and
+          // only while its prize is still the one read above (an admin edit in between makes it re-pick).
           const claimed = await tx.campaignReward.updateMany({
-            where: { id: r.id, ...(r.stock != null ? { givenCount: { lt: r.stock } } : {}) },
+            where: { id: r.id, kind: r.kind, voucherId: r.voucherId, coins: r.coins, ...(r.stock != null ? { givenCount: { lt: r.stock } } : {}) },
             data: { givenCount: { increment: 1 } },
           });
           if (claimed.count === 1) chosen = r;

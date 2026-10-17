@@ -183,9 +183,14 @@ export class AdminCampaignsController {
         const existing = await this.campaigns.full(id, tx);
         // Rewards keep their ids so stock already handed out stays counted.
         const keep = new Set(dto.rewards.map((r) => r.id).filter(Boolean));
+        // A play can win a reward while this runs, so removing one, or changing its prize, only goes through
+        // while it is still unwon at the moment of writing (the play's claim checks the prize the same way).
+        const justWon = (label: string) =>
+          new BadRequestException(`"${label}" was just won by a shopper, so it can't be removed or given a new prize now. Reload the page to see the latest numbers.`);
         for (const old of existing.rewards.filter((r) => !keep.has(r.id))) {
           if (old.givenCount > 0) throw new BadRequestException(`"${old.label}" has already been won ${old.givenCount} times, so it can't be removed. Set its weight to 1 or its stock to ${old.givenCount} instead.`);
-          await tx.campaignReward.delete({ where: { id: old.id } });
+          const removed = await tx.campaignReward.deleteMany({ where: { id: old.id, givenCount: 0 } });
+          if (removed.count !== 1) throw justWon(old.label);
         }
         for (const [i, r] of dto.rewards.entries()) {
           const current = r.id ? existing.rewards.find((x) => x.id === r.id) : undefined;
@@ -195,12 +200,16 @@ export class AdminCampaignsController {
           }
           // Plays point at this reward, so once it has been won its prize stays what those shoppers got.
           const next = this.rewardData(r, i);
-          if (current && current.givenCount > 0 && (next.kind !== current.kind || next.voucherId !== current.voucherId || next.coins !== current.coins)) {
+          const newPrize = !!current && (next.kind !== current.kind || next.voucherId !== current.voucherId || next.coins !== current.coins);
+          if (current && newPrize && current.givenCount > 0) {
             throw new BadRequestException(
               `"${current.label}" has already been won ${current.givenCount} times, so its prize can't change. Add a new reward for the new prize, and set this one's stock to ${current.givenCount} to stop it.`,
             );
           }
-          if (current) await tx.campaignReward.update({ where: { id: current.id }, data: next });
+          if (current && newPrize) {
+            const changed = await tx.campaignReward.updateMany({ where: { id: current.id, givenCount: 0 }, data: next });
+            if (changed.count !== 1) throw justWon(current.label);
+          } else if (current) await tx.campaignReward.update({ where: { id: current.id }, data: next });
           else await tx.campaignReward.create({ data: { ...next, campaignId: id } });
         }
         await tx.campaignProduct.deleteMany({ where: { campaignId: id } });

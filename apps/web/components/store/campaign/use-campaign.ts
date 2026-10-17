@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSession } from '@/components/providers';
 import { api } from '@/lib/api';
-import type { CampaignMe } from '@/lib/campaign';
+import type { CampaignMe, CampaignView, CurrentCampaign } from '@/lib/campaign';
 
 /*
  * Shared client state for the campaign parts (offer strip, banner, game):
@@ -77,6 +77,65 @@ export function useServerNow(serverNow: string, preview = false): number | null 
   }, [active]);
 
   return active === null ? null : now;
+}
+
+// ───── The campaign itself ─────
+
+let inflight: Promise<CurrentCampaign> | null = null;
+
+/** One request for the banner and the offer strip when they both need fresh data at the same moment. */
+function fetchCurrent(): Promise<CurrentCampaign> {
+  if (!inflight) {
+    const request = api<CurrentCampaign>('/campaigns/current', { cache: 'no-store' });
+    inflight = request;
+    request.then(
+      () => setTimeout(() => inflight === request && (inflight = null), 1000),
+      () => inflight === request && (inflight = null),
+    );
+  }
+  return inflight;
+}
+
+const ATTEMPTS = 5;
+const RETRY_MS = 2000;
+
+/**
+ * The campaign to show now, starting from what the page was rendered with. The API says when its answer
+ * next changes (`refreshAt`: the start, a flash sale behind the deals starting or ending, the end, …), and
+ * at that moment this fetches it again: an open page never keeps stale prices, and when a campaign ends the
+ * next eligible one takes its place (or nothing). `due` is true from that moment until fresh data arrives.
+ * The device clock is synced to the server's but can be a moment early, so an answer that hasn't changed
+ * yet is retried a few times. Nothing is fetched in preview.
+ */
+export function useFreshCampaign(initial: CampaignView, now: number | null, preview: boolean) {
+  const [view, setView] = useState<CampaignView | null>(initial);
+  const due = !preview && view !== null && now !== null && now >= Date.parse(view.refreshAt);
+  const dueFor = due ? `${view.id}@${view.refreshAt}` : null;
+  useEffect(() => {
+    if (!dueFor) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const retry = (n: number) => {
+      if (!cancelled && n < ATTEMPTS) timer = setTimeout(() => attempt(n + 1), RETRY_MS);
+    };
+    const attempt = (n: number) => {
+      fetchCurrent()
+        .then((d) => {
+          if (cancelled) return;
+          const next = d.campaign;
+          // The same answer means the server hasn't reached the moment yet.
+          if (next && `${next.id}@${next.refreshAt}` === dueFor) retry(n);
+          else setView(next);
+        })
+        .catch(() => retry(n));
+    };
+    attempt(1);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [dueFor]);
+  return { view, due };
 }
 
 /** TEASER before the start, LIVE until the end, ENDED after. */

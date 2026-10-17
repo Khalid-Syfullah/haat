@@ -568,6 +568,23 @@ async function main() {
     check('turning a campaign off hides it at once', (await new Client().get('/campaigns/current')).data.campaign?.id === live.id);
     await prisma.campaign.create({ data: { slug: 'e2e-ended', title: 'শেষ হওয়া অফার', startsAt: new Date(Date.now() - 48 * 3600_000), endsAt: new Date(Date.now() - 3600_000), priority: 99 } });
     check('ended campaigns are never shown', (await new Client().get('/campaigns/current')).data.campaign?.id === live.id);
+    const linkedSale = await prisma.flashSale.findFirstOrThrow({ where: { campaigns: { some: { id: live.id } } } });
+    check(
+      'a campaign says when its data next changes: its start, or a flash sale behind its deals ending',
+      teaser.refreshAt === teaser.startsAt && Date.parse(live.refreshAt) > Date.parse(cur.data.serverNow) && Date.parse(live.refreshAt) <= linkedSale.endsAt.getTime(),
+      { teaser: [teaser.refreshAt, teaser.startsAt], live: live.refreshAt, saleEnds: linkedSale.endsAt },
+    );
+    const soon = new Date(Date.now() + 10 * 60_000);
+    const later = await prisma.campaign.create({
+      data: { slug: 'e2e-later', title: 'পরের অফার', startsAt: new Date(soon.getTime() + 3600_000), endsAt: new Date(soon.getTime() + 5 * 3600_000), teaserHours: 1, priority: 60 },
+    });
+    const beforeTakeover = (await new Client().get('/campaigns/current')).data.campaign;
+    await prisma.campaign.update({ where: { id: later.id }, data: { isActive: false } });
+    check(
+      "a higher-priority campaign's teaser start counts as a change",
+      beforeTakeover?.id === live.id && Date.parse(beforeTakeover.refreshAt) === soon.getTime(),
+      [beforeTakeover?.refreshAt, soon.toISOString()],
+    );
     const dup = await nusrat.post(`/admin/campaigns/${created.data.id}/duplicate`);
     check('duplicating makes an inactive copy', dup.status === 201 && dup.data.isActive === false && dup.data.slug.endsWith('-copy'), dup.data);
     await nusrat.del(`/admin/campaigns/${dup.data.id}`);

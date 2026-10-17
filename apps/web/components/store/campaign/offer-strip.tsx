@@ -5,18 +5,22 @@ import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CampaignView } from '@/lib/campaign';
 import { THEMES } from './themes';
-import { phaseAt, useReducedMotion, useServerNow } from './use-campaign';
+import { phaseAt, useFreshCampaign, useReducedMotion, useServerNow } from './use-campaign';
 
 const SPEED = 40; // px per second
 
 /**
  * The offer strip under the header on every store page while a campaign is live. Scrolls right to left
  * in a seamless loop and pauses on hover or keyboard focus; with reduced motion it shows one item at a time.
+ * Like the home page block, it picks up the next campaign when this one ends.
  */
-export function OfferStrip({ campaign: c, serverNow, preview = false }: { campaign: CampaignView; serverNow?: string; preview?: boolean }) {
-  const now = useServerNow(serverNow ?? new Date(0).toISOString(), preview || !serverNow);
-  const phase = now === null || !serverNow ? c.status : phaseAt(now, c.startsAt, c.endsAt);
+export function OfferStrip({ campaign: initial, serverNow, preview = false }: { campaign: CampaignView; serverNow?: string; preview?: boolean }) {
+  const fixed = preview || !serverNow;
+  const now = useServerNow(serverNow ?? new Date(0).toISOString(), fixed);
+  const { view: c } = useFreshCampaign(initial, now, fixed);
   const reduced = useReducedMotion();
+  if (!c) return null;
+  const phase = now === null || !serverNow ? c.status : phaseAt(now, c.startsAt, c.endsAt);
   const t = THEMES[c.theme];
   if (phase !== 'LIVE' || !c.ticker.length) return null;
   return (
