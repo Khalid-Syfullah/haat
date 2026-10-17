@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import type { CampaignDeal } from '@/lib/campaign';
 import { bn, tkBn } from '@/lib/format';
+import { useReducedMotion } from './use-campaign';
 
 /**
  * "আজকের সেরা ডিল": as each card scrolls into view, the old price is struck through, the new price
@@ -11,10 +12,14 @@ import { bn, tkBn } from '@/lib/format';
  */
 export function DealCards({ deals, preview }: { deals: CampaignDeal[]; preview: boolean }) {
   const list = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    const cards = list.current?.querySelectorAll<HTMLElement>('[data-deal]');
-    if (!cards?.length) return;
+    const root = list.current;
+    const cards = root?.querySelectorAll<HTMLElement>('[data-deal]');
+    // With reduced motion, cards simply show their final state.
+    if (!root || !cards?.length || reduced) return;
+    root.dataset.armed = '1';
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -26,8 +31,11 @@ export function DealCards({ deals, preview }: { deals: CampaignDeal[]; preview: 
       { threshold: 0.4 },
     );
     cards.forEach((c) => io.observe(c));
-    return () => io.disconnect();
-  }, [deals]);
+    return () => {
+      io.disconnect();
+      delete root.dataset.armed;
+    };
+  }, [deals, reduced]);
 
   return (
     <section aria-labelledby="cmp-deals" className="min-w-0 rounded-[var(--radius-card)] border border-line bg-white p-3 sm:p-4">

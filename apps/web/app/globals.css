@@ -134,6 +134,7 @@
   to { opacity: 1; }
 }
 @keyframes cmp-strike {
+  from { transform: translateY(-50%) scaleX(0); }
   to { transform: translateY(-50%) scaleX(1); }
 }
 @keyframes cmp-stamp {
@@ -142,6 +143,7 @@
   100% { opacity: 1; transform: none; }
 }
 @keyframes cmp-fill {
+  from { transform: scaleX(0); }
   to { transform: scaleX(var(--p, 0)); }
 }
 @keyframes cmp-shake {
@@ -188,13 +190,19 @@
 .cmp-rise { animation: cmp-rise 450ms ease-out both; }
 .cmp-glow { animation: cmp-fade 600ms ease-out both; }
 
-/* Deal cards: the strike line, new price and stock bar play when the card scrolls into view. */
-.cmp-deal .cmp-strike { transform: translateY(-50%) scaleX(0); transform-origin: left; }
-.cmp-deal .cmp-fill { transform: scaleX(0); transform-origin: left; }
-.cmp-deal .cmp-stamp { opacity: 0; }
-.cmp-deal[data-in] .cmp-strike { animation: cmp-strike 350ms 120ms ease-out forwards; }
-.cmp-deal[data-in] .cmp-stamp { animation: cmp-stamp 300ms 380ms ease-out forwards; }
-.cmp-deal[data-in] .cmp-fill { animation: cmp-fill 900ms 300ms ease-out forwards; }
+/*
+ * Deal cards: the strike line, new price and stock bar play when the card scrolls into view.
+ * The final state is the default, so prices are never hidden if the script doesn't run; the list is
+ * only "armed" (cards hidden until they enter the view) once the script is watching them.
+ */
+.cmp-deal .cmp-strike { transform: translateY(-50%) scaleX(1); transform-origin: left; }
+.cmp-deal .cmp-fill { transform: scaleX(var(--p, 0)); transform-origin: left; }
+[data-armed] .cmp-deal:not([data-in]) .cmp-strike { transform: translateY(-50%) scaleX(0); }
+[data-armed] .cmp-deal:not([data-in]) .cmp-fill { transform: scaleX(0); }
+[data-armed] .cmp-deal:not([data-in]) .cmp-stamp { opacity: 0; }
+.cmp-deal[data-in] .cmp-strike { animation: cmp-strike 350ms 120ms ease-out both; }
+.cmp-deal[data-in] .cmp-stamp { animation: cmp-stamp 300ms 380ms ease-out both; }
+.cmp-deal[data-in] .cmp-fill { animation: cmp-fill 900ms 300ms ease-out both; }
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -218,9 +226,9 @@
     animation: none !important;
   }
   .cmp-sweep::after { display: none; }
-  .cmp-deal .cmp-strike { transform: translateY(-50%) scaleX(1); animation: none !important; }
-  .cmp-deal .cmp-fill { transform: scaleX(var(--p, 0)); animation: none !important; }
-  .cmp-deal .cmp-stamp { opacity: 1; animation: none !important; }
+  .cmp-deal .cmp-strike,
+  .cmp-deal .cmp-fill,
+  .cmp-deal .cmp-stamp { animation: none !important; }
 }
 
 @media print {
