@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { CampaignTheme, GameStyle, Permission, Prisma, RewardKind } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -99,6 +99,35 @@ export class AdminCampaignsController {
       plays: c._count.plays,
       status: campaignStatus(c, now),
     }));
+  }
+
+  /** Product search for the deals picker. Lives here so Marketing staff don't need the Catalog permission. */
+  @Get('products')
+  async products(@Query('q') q?: string) {
+    const term = q?.trim();
+    if (!term) return { items: [], total: 0 };
+    const rows = await this.prisma.productVariant.findMany({
+      where: {
+        product: { status: { not: 'ARCHIVED' } },
+        OR: [{ sku: { contains: term, mode: 'insensitive' } }, { product: { title: { contains: term, mode: 'insensitive' } } }],
+      },
+      include: { product: { select: { id: true, title: true, slug: true, images: { take: 1, orderBy: { sortOrder: 'asc' } } } } },
+      orderBy: [{ isActive: 'desc' }, { sku: 'asc' }],
+      take: 30,
+    });
+    return {
+      total: rows.length,
+      items: rows.map((v) => ({
+        id: v.id,
+        sku: v.sku,
+        label: variantLabel(v.options),
+        isActive: v.isActive,
+        price: v.salePrice ?? v.price,
+        regularPrice: v.price,
+        salePrice: v.salePrice,
+        product: { id: v.product.id, title: v.product.title, slug: v.product.slug, image: v.product.images[0]?.url ?? null },
+      })),
+    };
   }
 
   /** Form data for the editor, with enough product detail to show the picked deals. */
@@ -238,7 +267,9 @@ export class AdminCampaignsController {
     const [perDay, players, collects, orders] = await Promise.all([
       this.prisma.campaignPlay.groupBy({ by: ['playDay'], where: { campaignId: id }, _count: { _all: true }, orderBy: { playDay: 'asc' } }),
       this.prisma.campaignPlay.groupBy({ by: ['userId'], where: { campaignId: id } }).then((r) => r.length),
-      c.voucherId ? this.prisma.userVoucher.count({ where: { voucherId: c.voucherId, collectedAt: { gte: new Date(c.startsAt.getTime() - c.teaserHours * HOUR) } } }) : 0,
+      c.voucherId
+        ? this.prisma.userVoucher.count({ where: { voucherId: c.voucherId, collectedAt: { gte: new Date(c.startsAt.getTime() - c.teaserHours * HOUR), lte: c.endsAt } } })
+        : 0,
       c.voucherId
         ? this.prisma.voucherRedemption.count({ where: { voucherId: c.voucherId, reversedAt: null, createdAt: { gte: c.startsAt, lte: c.endsAt } } })
         : 0,
@@ -276,8 +307,12 @@ export class AdminCampaignsController {
         sortOrder: i,
       })),
     };
+    if (input.endsAt <= input.startsAt) throw new BadRequestException('The end time must be after the start time');
     const at = dto.at ? new Date(dto.at) : new Date();
-    return { serverNow: at, campaign: await this.campaigns.view(input, at) };
+    // Shown as if switched on, so a draft can be previewed; before the teaser and after the end the store shows nothing.
+    const status = campaignStatus({ ...input, isActive: true }, at);
+    if (status === 'SCHEDULED' || status === 'ENDED') return { serverNow: at, campaign: null, status };
+    return { serverNow: at, campaign: await this.campaigns.view(input, at), status };
   }
 
   private fields(dto: CampaignDto) {
@@ -314,40 +349,48 @@ export class AdminCampaignsController {
     };
   }
 
+  /**
+   * Checks a campaign before saving. Linked records must always exist. Whether they are still valid
+   * (active, collectible, overlapping the dates) and the game's reward count are only checked when the
+   * campaign is switched on, so turning a campaign off always works even if a voucher changed since.
+   */
   private async check(dto: CampaignDto) {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
+    const active = dto.isActive;
+    const overlaps = (s: Date, e: Date) => s < endsAt && e > startsAt;
     if (endsAt <= startsAt) throw new BadRequestException('The end time must be after the start time');
+    if (dto.rewards.some((r) => r.kind === 'VOUCHER' && !r.voucherId)) throw new BadRequestException('Pick the voucher for each voucher reward');
+    if (dto.rewards.some((r) => r.kind === 'COINS' && !r.coins)) throw new BadRequestException('Enter how many coins each coin reward gives');
+    if (new Set(dto.productIds).size !== dto.productIds.length) throw new BadRequestException('Each product can be picked once');
+
     if (dto.voucherId) {
       const v = await this.prisma.voucher.findUnique({ where: { id: dto.voucherId } });
       if (!v) throw new BadRequestException('The voucher to collect no longer exists');
-      if (!v.isActive || !v.isCollectible) throw new BadRequestException(`Voucher ${v.code} must be active and collectible to show on the banner`);
-      if (v.startsAt >= endsAt || v.endsAt <= startsAt) throw new BadRequestException(`Voucher ${v.code} isn't valid at any time during this campaign`);
+      if (active && (!v.isActive || !v.isCollectible)) throw new BadRequestException(`Voucher ${v.code} must be active and collectible to show on the banner`);
+      if (active && !overlaps(v.startsAt, v.endsAt)) throw new BadRequestException(`Voucher ${v.code} isn't valid at any time during this campaign`);
     }
     if (dto.flashSaleId) {
       const s = await this.prisma.flashSale.findUnique({ where: { id: dto.flashSaleId } });
       if (!s) throw new BadRequestException('The linked flash sale no longer exists');
-      if (s.startsAt >= endsAt || s.endsAt <= startsAt) throw new BadRequestException(`Flash sale "${s.title}" doesn't run at any time during this campaign`);
+      if (active && !overlaps(s.startsAt, s.endsAt)) throw new BadRequestException(`Flash sale "${s.title}" doesn't run at any time during this campaign`);
     }
-    if (new Set(dto.productIds).size !== dto.productIds.length) throw new BadRequestException('Each product can be picked once');
     if (dto.productIds.length) {
       const found = await this.prisma.productVariant.count({ where: { id: { in: dto.productIds } } });
       if (found !== dto.productIds.length) throw new BadRequestException('One of the picked products no longer exists');
     }
-    if (dto.gameEnabled) {
+    if (active && dto.gameEnabled) {
       if (dto.gameStyle === 'SPIN_WHEEL' && (dto.rewards.length < 4 || dto.rewards.length > 10)) throw new BadRequestException('A spin wheel needs 4 to 10 rewards');
       if (dto.rewards.length < 2) throw new BadRequestException('The daily game needs at least 2 rewards');
     }
-    const voucherIds = dto.rewards.filter((r) => r.kind === 'VOUCHER').map((r) => r.voucherId);
-    if (voucherIds.some((id) => !id)) throw new BadRequestException('Pick the voucher for each voucher reward');
-    if (dto.rewards.some((r) => r.kind === 'COINS' && !r.coins)) throw new BadRequestException('Enter how many coins each coin reward gives');
+    const voucherIds = dto.rewards.filter((r) => r.kind === 'VOUCHER').map((r) => r.voucherId as string);
     if (voucherIds.length) {
-      const vouchers = await this.prisma.voucher.findMany({ where: { id: { in: voucherIds as string[] } } });
+      const vouchers = await this.prisma.voucher.findMany({ where: { id: { in: voucherIds } } });
       for (const id of voucherIds) {
         const v = vouchers.find((x) => x.id === id);
         if (!v) throw new BadRequestException('A voucher used as a reward no longer exists');
-        if (!v.isActive) throw new BadRequestException(`Voucher ${v.code} is switched off, so it can't be a reward`);
-        if (v.startsAt >= endsAt || v.endsAt <= startsAt) throw new BadRequestException(`Voucher ${v.code} isn't valid at any time during this campaign`);
+        if (active && !v.isActive) throw new BadRequestException(`Voucher ${v.code} is switched off, so it can't be a reward`);
+        if (active && !overlaps(v.startsAt, v.endsAt)) throw new BadRequestException(`Voucher ${v.code} isn't valid at any time during this campaign`);
       }
     }
   }

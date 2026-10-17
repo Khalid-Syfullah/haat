@@ -46,7 +46,7 @@ export function ProductPicker({ value, onChange, error }: { value: CampaignProdu
     timer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await api<{ items: InventoryHit[]; total: number }>(`/admin/inventory?q=${encodeURIComponent(term)}&page=1`);
+        const res = await api<{ items: InventoryHit[]; total: number }>(`/admin/campaigns/products?q=${encodeURIComponent(term)}`);
         if (!live) return;
         setHits(res.items.slice(0, SHOW_HITS));
         setTotal(res.total);
@@ -55,7 +55,7 @@ export function ProductPicker({ value, onChange, error }: { value: CampaignProdu
         if (!live) return;
         setHits(null);
         setSearchError(
-          e instanceof ApiError && e.status === 403 ? 'Your account needs the Catalog permission to search products.' : e instanceof Error ? e.message : 'Search failed',
+          e instanceof ApiError && e.status === 403 ? 'Your account needs the Marketing permission to search products.' : e instanceof Error ? e.message : 'Search failed',
         );
       } finally {
         if (live) setSearching(false);

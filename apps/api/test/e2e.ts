@@ -581,6 +581,20 @@ async function main() {
       audited.map((a) => a.action),
     );
 
+    // Fixes from the admin build
+    const search = await nusrat.get('/admin/campaigns/products?q=kettle');
+    check('marketing staff can search products for deals', search.status === 200 && search.data.items.length > 0 && (await rafi.get('/admin/campaigns/products?q=kettle')).status === 403);
+    const early = await nusrat.post('/admin/campaigns/preview', { ...teaserForm, teaserHours: 0, at: iso(1) });
+    check('the preview shows nothing before the teaser starts', early.status === 200 && early.data.campaign === null, early.data);
+    const mega50 = await prisma.voucher.findUniqueOrThrow({ where: { code: 'MEGA50' } });
+    const offForm = form({ voucherId: mega50.id });
+    const withVoucher = await nusrat.post('/admin/campaigns', offForm);
+    await prisma.voucher.update({ where: { id: mega50.id }, data: { isCollectible: false } });
+    const turnedOff = await nusrat.patch(`/admin/campaigns/${withVoucher.data.id}`, { ...offForm, isActive: false });
+    const turnedOn = await nusrat.patch(`/admin/campaigns/${withVoucher.data.id}`, { ...offForm, isActive: true });
+    await prisma.voucher.update({ where: { id: mega50.id }, data: { isCollectible: true } });
+    check('a campaign can always be switched off, but not back on with a broken voucher', turnedOff.status === 200 && turnedOn.status === 400, [turnedOff.status, turnedOn.status]);
+
     // The daily game
     const shopper = async (name: string) => {
       const c = new Client();
