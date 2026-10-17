@@ -1,5 +1,6 @@
 'use client';
 
+import clsx from 'clsx';
 import { Check, Ticket } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -84,7 +85,13 @@ export function CampaignBanner({
       {c.badge && <Starburst text={c.badge} bg={t.badgeBg} ink={t.badgeInk} />}
       <canvas ref={canvas} className="pointer-events-none absolute inset-0 size-full" aria-hidden />
 
-      <div className="relative flex flex-col gap-3 p-4 pr-24 sm:max-w-[60%] sm:gap-4 sm:p-7 sm:pr-7 lg:p-9">
+      <div
+        className={clsx(
+          'relative flex flex-col gap-3 p-4 pr-24 sm:max-w-[60%] sm:gap-4 sm:p-7 sm:pr-7 lg:p-9',
+          // Room for the alpona borders top and bottom
+          c.theme === 'BOISHAKH' && 'py-10 sm:py-11 lg:py-12',
+        )}
+      >
         <div>
           <h2 className="cmp-drop font-brand text-[34px] leading-[1.15] drop-shadow-[0_2px_0_rgba(0,0,0,0.12)] sm:text-[46px] lg:text-[60px]">
             {c.title}
