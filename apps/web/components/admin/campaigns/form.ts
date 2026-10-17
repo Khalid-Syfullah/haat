@@ -290,6 +290,9 @@ export function previewBody(f: CampaignForm): { body: CampaignBody } | { missing
         .map((r) => ({
           ...(r.id ? { id: r.id } : {}),
           kind: r.kind,
+          // The preview works out odds from the voucher, so send it (and the coins) as a save would.
+          voucherId: r.kind === 'VOUCHER' ? r.voucherId || null : null,
+          coins: r.kind === 'COINS' && whole(r.coins) && Number(r.coins) >= 1 && Number(r.coins) <= 10000 ? Number(r.coins) : null,
           label: r.label.trim(),
           weight: Number(r.weight),
           stock: whole(r.stock) && Number(r.stock) >= 0 ? Number(r.stock) : null,

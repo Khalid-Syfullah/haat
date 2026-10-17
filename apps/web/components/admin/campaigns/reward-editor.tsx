@@ -82,6 +82,9 @@ export function RewardEditor({
                 const out = soldOut(r);
                 const { className: dragClass, ...rowProps } = drag.row(i);
                 const name = r.label.trim() || `reward ${i + 1}`;
+                // Shoppers have won this exact prize, so it stays fixed (the API refuses a change too).
+                const won = r.givenCount > 0;
+                const lockedTitle = `Won ${r.givenCount} times, so the prize can't change. Add a new reward for a new prize, and set this one's stock to ${r.givenCount} to stop it.`;
                 return (
                   <tr key={r.key} {...rowProps} className={clsx(bad && 'bg-sindoor-tint/40', dragClass)}>
                     <td className={cell}>
@@ -108,6 +111,8 @@ export function RewardEditor({
                         className="h-9 min-w-32 max-w-32"
                         value={r.kind}
                         aria-label={`Kind of reward ${i + 1}`}
+                        disabled={won}
+                        title={won ? lockedTitle : undefined}
                         onChange={(e) => {
                           const kind = e.target.value as RewardKind;
                           set(r.key, { kind, voucherId: kind === 'VOUCHER' ? r.voucherId : '', coins: kind === 'COINS' ? r.coins || '20' : '' });
@@ -122,7 +127,14 @@ export function RewardEditor({
                     </td>
                     <td className={cell}>
                       {r.kind === 'VOUCHER' && (
-                        <Select className="h-9 min-w-60 max-w-72" value={r.voucherId} aria-label={`Voucher for reward ${i + 1}`} onChange={(e) => set(r.key, { voucherId: e.target.value })}>
+                        <Select
+                          className="h-9 min-w-60 max-w-72"
+                          value={r.voucherId}
+                          aria-label={`Voucher for reward ${i + 1}`}
+                          disabled={won}
+                          title={won ? lockedTitle : undefined}
+                          onChange={(e) => set(r.key, { voucherId: e.target.value })}
+                        >
                           <option value="">Pick a voucher…</option>
                           {voucherChoices(r.voucherId).map((v) => (
                             <option key={v.id} value={v.id}>
@@ -142,6 +154,8 @@ export function RewardEditor({
                             max={10000}
                             value={r.coins}
                             aria-label={`Coins for reward ${i + 1}`}
+                            disabled={won}
+                            title={won ? lockedTitle : undefined}
                             onChange={(e) => set(r.key, { coins: e.target.value })}
                           />
                           <span className="text-ink-soft">coins</span>

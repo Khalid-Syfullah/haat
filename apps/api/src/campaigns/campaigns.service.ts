@@ -126,9 +126,9 @@ function inStock(r: { stock: number | null; givenCount: number }) {
   return r.stock == null || r.givenCount < r.stock;
 }
 
-/** A voucher reward can be won while its voucher is switched on and not expired. */
-function winnable(v: Pick<Voucher, 'isActive' | 'endsAt'> | null | undefined, now: Date): boolean {
-  return !!v && v.isActive && v.endsAt > now;
+/** A voucher reward can be won while its voucher is switched on, not expired and not fully used (checkout's rules). */
+function winnable(v: Pick<Voucher, 'isActive' | 'endsAt' | 'usageLimit' | 'usedCount'> | null | undefined, now: Date): boolean {
+  return !!v && v.isActive && v.endsAt > now && (v.usageLimit == null || v.usedCount < v.usageLimit);
 }
 
 /** The same rule as POST /vouchers/:id/collect, so the banner never offers a button that would fail. */
@@ -311,16 +311,20 @@ export class CampaignsService {
         const play = await tx.campaignPlay.create({ data: { campaignId, userId, playDay: dhakaDay(now) } });
         const rewards = await tx.campaignReward.findMany({ where: { campaignId }, include: { voucher: true }, orderBy: { sortOrder: 'asc' } });
         const voucherIds = rewards.flatMap((r) => (r.kind === 'VOUCHER' && r.voucherId ? [r.voucherId] : []));
-        const held = new Set(
-          voucherIds.length
-            ? (await tx.userVoucher.findMany({ where: { userId, voucherId: { in: voucherIds } }, select: { voucherId: true } })).map((u) => u.voucherId)
-            : [],
-        );
-        // A voucher that has expired or been switched off can't be won, and neither can one the shopper
-        // already holds: it would use up a prize and give them nothing new.
-        let pool = rewards.filter(
-          (r) => inStock(r) && (r.kind !== 'VOUCHER' || (winnable(r.voucher, now) && !!r.voucherId && !held.has(r.voucherId))),
-        );
+        const held = new Set<string>();
+        const usedTimes = new Map<string, number>();
+        if (voucherIds.length) {
+          const owned = await tx.userVoucher.findMany({ where: { userId, voucherId: { in: voucherIds } }, select: { voucherId: true } });
+          const redeemed = await tx.voucherRedemption.groupBy({ by: ['voucherId'], where: { userId, voucherId: { in: voucherIds }, reversedAt: null }, _count: { _all: true } });
+          for (const u of owned) held.add(u.voucherId);
+          for (const g of redeemed) usedTimes.set(g.voucherId, g._count._all);
+        }
+        // A voucher can't be won when checkout would refuse it (switched off, expired, fully used, or this
+        // shopper's own limit used up), nor when the shopper already holds it: either way the prize would
+        // be used up and give them nothing new.
+        const usable = (r: (typeof rewards)[number]) =>
+          winnable(r.voucher, now) && !!r.voucherId && !held.has(r.voucherId) && (usedTimes.get(r.voucherId) ?? 0) < r.voucher!.perUserLimit;
+        let pool = rewards.filter((r) => inStock(r) && (r.kind !== 'VOUCHER' || usable(r)));
         let chosen: (typeof rewards)[number] | null = null;
         while (pool.length && !chosen) {
           const total = pool.reduce((s, r) => s + r.weight, 0);

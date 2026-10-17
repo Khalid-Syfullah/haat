@@ -193,8 +193,15 @@ export class AdminCampaignsController {
           if (current && r.stock != null && r.stock < current.givenCount) {
             throw new BadRequestException(`Stock for "${r.label}" can't go below the ${current.givenCount} already won`);
           }
-          if (current) await tx.campaignReward.update({ where: { id: current.id }, data: this.rewardData(r, i) });
-          else await tx.campaignReward.create({ data: { ...this.rewardData(r, i), campaignId: id } });
+          // Plays point at this reward, so once it has been won its prize stays what those shoppers got.
+          const next = this.rewardData(r, i);
+          if (current && current.givenCount > 0 && (next.kind !== current.kind || next.voucherId !== current.voucherId || next.coins !== current.coins)) {
+            throw new BadRequestException(
+              `"${current.label}" has already been won ${current.givenCount} times, so its prize can't change. Add a new reward for the new prize, and set this one's stock to ${current.givenCount} to stop it.`,
+            );
+          }
+          if (current) await tx.campaignReward.update({ where: { id: current.id }, data: next });
+          else await tx.campaignReward.create({ data: { ...next, campaignId: id } });
         }
         await tx.campaignProduct.deleteMany({ where: { campaignId: id } });
         await tx.campaignTickerItem.deleteMany({ where: { campaignId: id } });

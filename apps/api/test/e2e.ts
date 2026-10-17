@@ -679,6 +679,41 @@ async function main() {
         [copy1.data.slug, copy2.data.slug].every((s: string) => s.length <= 60 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)),
       [copy1.data?.slug, copy2.data?.slug],
     );
+
+    // Second review round
+    const stamp = Date.now().toString(36).toUpperCase();
+    const validity = { startsAt: new Date(Date.now() - 3600_000), endsAt: new Date(Date.now() + 48 * 3600_000) };
+    const fullyUsed = await prisma.voucher.create({ data: { code: `E2EFULL${stamp}`, title: 'শেষ হওয়া ভাউচার', type: 'FIXED', value: 30, usageLimit: 1, usedCount: 1, ...validity } });
+    const usedUp = await prisma.voucher.create({ data: { code: `E2EUSED${stamp}`, title: 'ব্যবহৃত ভাউচার', type: 'FIXED', value: 30, perUserLimit: 1, ...validity } });
+    const herOrder = await prisma.order.findFirstOrThrow({ where: { userId: login.data.user.id, redemption: null } });
+    await prisma.voucherRedemption.create({ data: { voucherId: usedUp.id, userId: login.data.user.id, orderId: herOrder.id, discount: 30 } });
+    const limitGame = await gameCampaign('e2e-limits', [
+      { kind: 'VOUCHER', voucher: { connect: { id: fullyUsed.id } }, label: '৳৩০ ছাড়', weight: 1000 },
+      { kind: 'VOUCHER', voucher: { connect: { id: usedUp.id } }, label: '৳৩০ ছাড়', weight: 1000 },
+      { kind: 'NONE', label: 'আবার চেষ্টা করুন', weight: 1 },
+    ]);
+    const limitPlay = await ayesha.post(`/campaigns/${limitGame.id}/play`);
+    const limitGiven = await prisma.campaignReward.aggregate({ where: { campaignId: limitGame.id, kind: 'VOUCHER' }, _sum: { givenCount: true } });
+    check(
+      "vouchers checkout would refuse (fully used, or the shopper's own limit used up) are not won",
+      limitPlay.data.reward?.kind === 'NONE' && limitGiven._sum.givenCount === 0,
+      limitPlay.data,
+    );
+    const rushRewards = await prisma.campaignReward.findMany({ where: { campaignId: rush.id }, orderBy: { sortOrder: 'asc' } });
+    const rushForm = (coins: number, label: string) =>
+      form({
+        slug: 'e2e-rush', isActive: false, gameEnabled: true, startsAt: rush.startsAt.toISOString(), endsAt: rush.endsAt.toISOString(),
+        rewards: rushRewards.map((r) =>
+          r.kind === 'COINS' ? { id: r.id, kind: 'COINS', coins, label, weight: r.weight, stock: r.stock } : { id: r.id, kind: r.kind, label: r.label, weight: r.weight, stock: r.stock },
+        ),
+      });
+    const changePrize = await nusrat.patch(`/admin/campaigns/${rush.id}`, rushForm(50, '৫০ কয়েন'));
+    const changeWording = await nusrat.patch(`/admin/campaigns/${rush.id}`, rushForm(5, '৫টি কয়েন'));
+    check(
+      "a reward that has been won keeps its prize, but its wording can change",
+      changePrize.status === 400 && changeWording.status === 200,
+      [changePrize.status, changePrize.data?.message, changeWording.status, changeWording.data?.message],
+    );
     await prisma.campaign.updateMany({ where: { slug: { startsWith: 'e2e-' } }, data: { isActive: false } });
   }
 
