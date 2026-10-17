@@ -12,7 +12,8 @@ import type { CampaignMe } from '@/lib/campaign';
 
 // ───── Clock ─────
 // The page's serverNow can be up to 30 s old (the campaign API is cached), and phone clocks are
-// often minutes off, so ask the server once for the time and keep the difference.
+// often minutes off, so ask the server once for the time and keep the difference. The health
+// endpoint answers with the time and touches no database.
 
 let offset: number | null = null;
 let syncing: Promise<void> | null = null;
@@ -21,12 +22,12 @@ const clockListeners = new Set<() => void>();
 function syncClock(fallbackServerNow: string) {
   if (offset !== null || syncing) return;
   const sent = Date.now();
-  syncing = fetch('/api/campaigns/current', { cache: 'no-store', credentials: 'omit' })
+  syncing = fetch('/api/health', { cache: 'no-store', credentials: 'omit' })
     .then((r) => r.json())
-    .then((d: { serverNow?: string }) => {
+    .then((d: { time?: string }) => {
       const received = Date.now();
-      if (!d.serverNow) throw new Error('no time');
-      offset = Date.parse(d.serverNow) + (received - sent) / 2 - received;
+      if (!d.time) throw new Error('no time');
+      offset = Date.parse(d.time) + (received - sent) / 2 - received;
     })
     .catch(() => {
       offset = Date.parse(fallbackServerNow) - Date.now();
