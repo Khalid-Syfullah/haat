@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSession } from '@/components/providers';
 import { api } from '@/lib/api';
 import type { CampaignMe } from '@/lib/campaign';
@@ -89,58 +89,79 @@ export function phaseAt(now: number, startsAt: string, endsAt: string): 'TEASER'
 
 type MeState = { status: 'loading' } | { status: 'out' } | { status: 'in'; me: CampaignMe };
 
-const meCache = new Map<string, { state: MeState; listeners: Set<() => void>; loading?: Promise<void> }>();
+/** Keyed by campaign and account, so a different account in the same tab never sees someone else's state. */
+const meCache = new Map<string, { state: MeState; listeners: Set<() => void>; loading?: Promise<void>; seq: number }>();
 
-function entry(id: string) {
-  let e = meCache.get(id);
+function entry(key: string) {
+  let e = meCache.get(key);
   if (!e) {
-    e = { state: { status: 'loading' }, listeners: new Set() };
-    meCache.set(id, e);
+    e = { state: { status: 'loading' }, listeners: new Set(), seq: 0 };
+    meCache.set(key, e);
   }
   return e;
 }
 
-function loadMe(id: string, force = false) {
-  const e = entry(id);
+/** Fetches the shopper's state. Calls made while a request is in flight share it unless `force`; only the latest answer is kept. */
+function loadMe(key: string, id: string, force = false) {
+  const e = entry(key);
   if (e.loading && !force) return e.loading;
-  e.loading = api<CampaignMe>(`/campaigns/${id}/me`)
-    .then((me) => {
-      e.state = { status: 'in', me };
-    })
-    .catch(() => {
-      // 401 (signed out in the meantime) or a network error: offer to sign in rather than a broken button.
-      e.state = { status: 'out' };
-    })
-    .finally(() => e.listeners.forEach((l) => l()));
-  return e.loading;
+  const seq = ++e.seq;
+  const keep = (state: MeState) => {
+    if (seq !== e.seq) return;
+    e.state = state;
+    e.listeners.forEach((l) => l());
+  };
+  const request = api<CampaignMe>(`/campaigns/${id}/me`)
+    .then((me) => keep({ status: 'in', me }))
+    // 401 (signed out in the meantime) or a network error: offer to sign in rather than a broken button.
+    .catch(() => keep({ status: 'out' }))
+    .finally(() => {
+      if (e.loading === request) e.loading = undefined;
+    });
+  e.loading = request;
+  return request;
+}
+
+/** "YYYY-MM-DD" in Dhaka (UTC+6, no daylight saving), the day the server counts plays by. */
+export function dhakaDay(ms: number): string {
+  return new Date(ms + 6 * 3_600_000).toISOString().slice(0, 10);
 }
 
 /**
  * Whether the shopper is signed in, has collected the voucher and has played today. Skipped in preview,
- * and for signed-out visitors (known from the session, so no request is made for them).
+ * and for signed-out visitors (known from the session, so no request is made for them). Fetched again
+ * each time the campaign mounts (the last answer shows meanwhile) and when the Dhaka day rolls over,
+ * so a new day's play opens without a reload.
  */
-export function useCampaignMe(id: string, enabled: boolean) {
-  const signedIn = !!useSession().user;
+export function useCampaignMe(id: string, enabled: boolean, day: string | null = null) {
+  const userId = useSession().user?.id ?? null;
+  const key = `${id}:${userId ?? ''}`;
   const state = useSyncExternalStore(
     (cb) => {
-      const e = entry(id);
+      const e = entry(key);
       e.listeners.add(cb);
       return () => e.listeners.delete(cb);
     },
-    () => entry(id).state,
+    () => entry(key).state,
     () => ({ status: 'loading' }) as MeState,
   );
-  const active = enabled && signedIn;
+  const active = enabled && !!userId;
   useEffect(() => {
-    if (active) void loadMe(id);
-  }, [id, active]);
+    if (active) void loadMe(key, id);
+  }, [key, id, active]);
+  const seenDay = useRef(day);
+  useEffect(() => {
+    if (active && day && seenDay.current && seenDay.current !== day) void loadMe(key, id, true);
+    if (day) seenDay.current = day;
+  }, [key, id, active, day]);
   return {
     state: active ? state : ({ status: 'out' } as MeState),
-    refresh: () => loadMe(id, true),
+    refresh: () => loadMe(key, id, true),
     /** Update locally after an action, without another request. */
     patch: (fn: (me: CampaignMe) => CampaignMe) => {
-      const e = entry(id);
+      const e = entry(key);
       if (e.state.status === 'in') {
+        e.seq++; // an answer still in flight was asked for before this change, so it's dropped
         e.state = { status: 'in', me: fn(e.state.me) };
         e.listeners.forEach((l) => l());
       }

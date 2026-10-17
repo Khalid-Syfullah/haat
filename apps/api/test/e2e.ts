@@ -621,12 +621,15 @@ async function main() {
     const coinsBefore = (await prisma.user.findUniqueOrThrow({ where: { id: player.user.id } })).coins;
     const coinWin = await player.c.post(`/campaigns/${coinGame.id}/play`);
     const coinsAfter = (await prisma.user.findUniqueOrThrow({ where: { id: player.user.id } })).coins;
-    const coinTxn = await prisma.coinTransaction.findFirst({ where: { userId: player.user.id, reason: 'CAMPAIGN_REWARD' } });
+    // Looked up by campaign: the player's earlier play on the live campaign may also have won coins.
+    const coinTxn = await prisma.coinTransaction.findFirst({ where: { userId: player.user.id, reason: 'CAMPAIGN_REWARD', refId: coinGame.id } });
     check('a coin reward is credited to the shopper', coinWin.data.reward?.coins === 15 && coinsAfter === coinsBefore + 15 && coinTxn?.amount === 15, coinWin.data);
     const freeship = await prisma.voucher.findUniqueOrThrow({ where: { code: 'FREESHIP' } });
     const voucherGame = await gameCampaign('e2e-voucher', [{ kind: 'VOUCHER', voucher: { connect: { id: freeship.id } }, label: 'ফ্রি ডেলিভারি', weight: 1 }]);
-    const voucherWin = await player.c.post(`/campaigns/${voucherGame.id}/play`);
-    const myVouchers = (await player.c.get('/vouchers/mine')).data;
+    // A new shopper: the first player may already hold FREESHIP from the live campaign, and a held voucher can't be won.
+    const voucherPlayer = await shopper('Voucher Player');
+    const voucherWin = await voucherPlayer.c.post(`/campaigns/${voucherGame.id}/play`);
+    const myVouchers = (await voucherPlayer.c.get('/vouchers/mine')).data;
     check(
       'a voucher reward lands in the shopper’s vouchers',
       voucherWin.data.reward?.voucherCode === 'FREESHIP' && JSON.stringify(myVouchers).includes('FREESHIP'),
@@ -643,6 +646,39 @@ async function main() {
     check('20 plays at once never give more than the stock', plays.every((p) => p.status === 200) && wins === 5 && rushReward.givenCount === 5, { wins, given: rushReward.givenCount, statuses: plays.map((p) => p.status) });
     const rushStats = await nusrat.get(`/admin/campaigns/${rush.id}/stats`);
     check('campaign stats count plays and rewards', rushStats.data.plays === 20 && rushStats.data.players === 20 && rushStats.data.rewards.find((r: any) => r.kind === 'COINS')?.givenCount === 5, rushStats.data);
+
+    // Fixes from the PR review
+    const heldGame = await gameCampaign('e2e-held', [
+      { kind: 'VOUCHER', voucher: { connect: { id: freeship.id } }, label: 'ফ্রি ডেলিভারি', weight: 1000, stock: 3 },
+      { kind: 'NONE', label: 'আবার চেষ্টা করুন', weight: 1 },
+    ]);
+    const heldPlay = await voucherPlayer.c.post(`/campaigns/${heldGame.id}/play`);
+    const heldReward = await prisma.campaignReward.findFirstOrThrow({ where: { campaignId: heldGame.id, kind: 'VOUCHER' } });
+    check('a voucher the shopper already holds is not won again', heldPlay.data.reward?.kind === 'NONE' && heldReward.givenCount === 0, heldPlay.data);
+    const expired = await prisma.voucher.create({
+      data: { code: `E2EOLD${Date.now().toString(36).toUpperCase()}`, title: 'পুরনো ভাউচার', type: 'FIXED', value: 20, startsAt: new Date(Date.now() - 48 * 3600_000), endsAt: new Date(Date.now() - 3600_000) },
+    });
+    const oddsPreview = await nusrat.post('/admin/campaigns/preview', {
+      ...form({ isActive: false, gameEnabled: true, voucherId: eid25.id }),
+      at: iso(3),
+      rewards: [
+        { kind: 'VOUCHER', voucherId: expired.id, label: '৳২০ ছাড়', weight: 1 },
+        { kind: 'COINS', coins: 5, label: '৫ কয়েন', weight: 1 },
+      ],
+    });
+    const shownOdds = oddsPreview.data.campaign?.game?.rewards.map((r: any) => r.odds);
+    check('advertised odds leave out a voucher that can no longer be won', JSON.stringify(shownOdds) === '[0,100]', oddsPreview.data);
+    check('the banner only offers a voucher that can be collected now', oddsPreview.status === 200 && oddsPreview.data.campaign.voucher === null, oddsPreview.data.campaign?.voucher);
+    const longSlug = `e2e-long-${'a'.repeat(51)}`;
+    const longCampaign = await prisma.campaign.create({ data: { slug: longSlug, title: 'লম্বা নাম', startsAt: new Date(Date.now() + 3600_000), endsAt: new Date(Date.now() + 7200_000), isActive: false } });
+    const copy1 = await nusrat.post(`/admin/campaigns/${longCampaign.id}/duplicate`);
+    const copy2 = await nusrat.post(`/admin/campaigns/${longCampaign.id}/duplicate`);
+    check(
+      'duplicating a campaign with a long slug gives distinct, valid slugs',
+      copy1.status === 201 && copy2.status === 201 && copy1.data.slug.endsWith('-copy') && copy2.data.slug.endsWith('-copy-2') &&
+        [copy1.data.slug, copy2.data.slug].every((s: string) => s.length <= 60 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)),
+      [copy1.data?.slug, copy2.data?.slug],
+    );
     await prisma.campaign.updateMany({ where: { slug: { startsWith: 'e2e-' } }, data: { isActive: false } });
   }
 

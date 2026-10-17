@@ -53,7 +53,7 @@ export interface CampaignInput {
   flashSaleId: string | null;
   productIds: string[];
   ticker: { text: string; href: string | null }[];
-  rewards: { id: string; kind: RewardKind; label: string; weight: number; stock: number | null; givenCount: number; sortOrder: number }[];
+  rewards: { id: string; kind: RewardKind; voucherId: string | null; label: string; weight: number; stock: number | null; givenCount: number; sortOrder: number }[];
 }
 
 export interface CampaignDeal {
@@ -109,12 +109,31 @@ export function toInput(c: FullCampaign): CampaignInput {
     ...c,
     productIds: c.products.map((p) => p.variantId),
     ticker: c.ticker.map((t) => ({ text: t.text, href: t.href })),
-    rewards: c.rewards.map((r) => ({ id: r.id, kind: r.kind, label: r.label, weight: r.weight, stock: r.stock, givenCount: r.givenCount, sortOrder: r.sortOrder })),
+    rewards: c.rewards.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      voucherId: r.voucherId,
+      label: r.label,
+      weight: r.weight,
+      stock: r.stock,
+      givenCount: r.givenCount,
+      sortOrder: r.sortOrder,
+    })),
   };
 }
 
 function inStock(r: { stock: number | null; givenCount: number }) {
   return r.stock == null || r.givenCount < r.stock;
+}
+
+/** A voucher reward can be won while its voucher is switched on and not expired. */
+function winnable(v: Pick<Voucher, 'isActive' | 'endsAt'> | null | undefined, now: Date): boolean {
+  return !!v && v.isActive && v.endsAt > now;
+}
+
+/** The same rule as POST /vouchers/:id/collect, so the banner never offers a button that would fail. */
+function collectible(v: Voucher | null, now: Date): v is Voucher {
+  return !!v && v.isActive && v.isCollectible && v.startsAt <= now && v.endsAt > now;
 }
 
 @Injectable()
@@ -137,15 +156,22 @@ export class CampaignsService {
   }
 
   async view(c: CampaignInput, now = new Date()): Promise<CampaignView> {
-    const [voucher, deals] = await Promise.all([
+    const rewardVoucherIds = [...new Set(c.rewards.flatMap((r) => (r.kind === 'VOUCHER' && r.voucherId ? [r.voucherId] : [])))];
+    const [voucher, deals, rewardVouchers] = await Promise.all([
       c.voucherId ? this.prisma.voucher.findUnique({ where: { id: c.voucherId } }) : null,
       this.deals(c, now),
+      rewardVoucherIds.length ? this.prisma.voucher.findMany({ where: { id: { in: rewardVoucherIds } } }) : [],
     ]);
     const live = now >= c.startsAt;
-    const available = c.rewards.filter(inStock);
-    const totalWeight = available.reduce((s, r) => s + r.weight, 0);
+    // The advertised odds use the same pool as play(): in stock, and for vouchers, still winnable.
+    const available = new Set(
+      c.rewards
+        .filter((r) => inStock(r) && (r.kind !== 'VOUCHER' || winnable(rewardVouchers.find((v) => v.id === r.voucherId), now)))
+        .map((r) => r.id),
+    );
+    const totalWeight = c.rewards.reduce((s, r) => s + (available.has(r.id) ? r.weight : 0), 0);
     const maxPct = deals.reduce((m, d) => Math.max(m, d.discountPct), 0);
-    const voucherOk = voucher && voucher.isActive && voucher.endsAt > now;
+    const voucherOk = collectible(voucher, now);
     return {
       id: c.id,
       slug: c.slug,
@@ -170,7 +196,7 @@ export class CampaignsService {
                 kind: r.kind,
                 label: r.label,
                 sortOrder: r.sortOrder,
-                odds: inStock(r) && totalWeight ? Math.round((r.weight / totalWeight) * 1000) / 10 : 0,
+                odds: available.has(r.id) && totalWeight ? Math.round((r.weight / totalWeight) * 1000) / 10 : 0,
               })),
             }
           : null,
@@ -284,8 +310,17 @@ export class CampaignsService {
       return await this.prisma.$transaction(async (tx) => {
         const play = await tx.campaignPlay.create({ data: { campaignId, userId, playDay: dhakaDay(now) } });
         const rewards = await tx.campaignReward.findMany({ where: { campaignId }, include: { voucher: true }, orderBy: { sortOrder: 'asc' } });
-        // A voucher that has expired or been switched off can't be won.
-        let pool = rewards.filter((r) => inStock(r) && (r.kind !== 'VOUCHER' || (r.voucher && r.voucher.isActive && r.voucher.endsAt > now)));
+        const voucherIds = rewards.flatMap((r) => (r.kind === 'VOUCHER' && r.voucherId ? [r.voucherId] : []));
+        const held = new Set(
+          voucherIds.length
+            ? (await tx.userVoucher.findMany({ where: { userId, voucherId: { in: voucherIds } }, select: { voucherId: true } })).map((u) => u.voucherId)
+            : [],
+        );
+        // A voucher that has expired or been switched off can't be won, and neither can one the shopper
+        // already holds: it would use up a prize and give them nothing new.
+        let pool = rewards.filter(
+          (r) => inStock(r) && (r.kind !== 'VOUCHER' || (winnable(r.voucher, now) && !!r.voucherId && !held.has(r.voucherId))),
+        );
         let chosen: (typeof rewards)[number] | null = null;
         while (pool.length && !chosen) {
           const total = pool.reduce((s, r) => s + r.weight, 0);

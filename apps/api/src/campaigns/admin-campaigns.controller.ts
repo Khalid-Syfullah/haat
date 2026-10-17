@@ -232,8 +232,10 @@ export class AdminCampaignsController {
     const c = await this.campaigns.full(id);
     const length = c.endsAt.getTime() - c.startsAt.getTime();
     const start = new Date(Math.max(c.startsAt.getTime(), Date.now()) + 7 * 24 * HOUR);
-    let slug = `${c.slug}-copy`.slice(0, 60);
-    for (let n = 2; await this.prisma.campaign.findUnique({ where: { slug } }); n++) slug = `${c.slug}-copy-${n}`.slice(0, 60);
+    // Shorten the original before adding the suffix, so long slugs still get distinct candidates.
+    const withSuffix = (suffix: string) => `${c.slug.slice(0, 60 - suffix.length).replace(/-+$/, '')}${suffix}`;
+    let slug = withSuffix('-copy');
+    for (let n = 2; await this.prisma.campaign.findUnique({ where: { slug } }); n++) slug = withSuffix(`-copy-${n}`);
     return this.prisma.campaign.create({
       data: {
         slug,
@@ -300,6 +302,7 @@ export class AdminCampaignsController {
       rewards: dto.rewards.map((r, i) => ({
         id: r.id ?? `new-${i}`,
         kind: r.kind,
+        voucherId: r.kind === 'VOUCHER' ? r.voucherId || null : null,
         label: r.label,
         weight: r.weight,
         stock: r.stock ?? null,
