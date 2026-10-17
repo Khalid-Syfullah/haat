@@ -1,7 +1,8 @@
 # Deployment
 
 Tuktak Bazaar runs on one EC2 instance (t4g.small, Ubuntu 24.04, ap-southeast-2) behind nginx at
-https://production.khalidsyfullah.com. PostgreSQL 16 runs on the same machine.
+https://tuktakbazaar.com (www redirects to it; the old address https://production.khalidsyfullah.com
+still serves the same store). PostgreSQL 16 runs on the same machine.
 
 The server-side names still say `haat` (`/var/www/haat`, the `haat-api` and `haat-web` pm2 apps,
 the `haat` database, the `haat-deploy` command and the `haat-github-deploy` role). They are internal
@@ -22,7 +23,7 @@ and were kept on purpose when the store was renamed, so nothing on the running s
    - points `/var/www/haat/current` at the new release and reloads pm2,
    - health-checks the API and the storefront. If either fails, the previous release is put
      back and the job fails. The newest 3 releases are kept.
-5. The workflow checks that `https://production.khalidsyfullah.com/api/health` reports the
+5. The workflow checks that `https://tuktakbazaar.com/api/health` reports the
    deployed commit.
 
 Pull requests run CI only.
